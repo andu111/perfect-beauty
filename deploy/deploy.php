@@ -13,7 +13,8 @@ $STATE  = __DIR__ . '/state.json';
 $LOG    = __DIR__ . '/deploy.log';
 $FORCE  = in_array('force', $argv ?? [], true) || isset($_GET['force']);
 
-if (PHP_SAPI !== 'cli') { http_response_code(403); exit; }   // cron only, never from the web
+// Cron only, never directly from the web (the password-protected check.php may run it on purpose).
+if (PHP_SAPI !== 'cli' && !defined('PB_ALLOW_WEB')) { http_response_code(403); exit; }
 
 function logline($msg) {
     global $LOG;
