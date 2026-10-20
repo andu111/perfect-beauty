@@ -1,0 +1,5 @@
+deploy/config.php
+deploy/state.json
+deploy/deploy.log
+deploy/deploy.lock
+.DS_Store
