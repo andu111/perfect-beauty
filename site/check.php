@@ -22,8 +22,8 @@ if (preg_match('/[\x{2018}\x{2019}\x{201C}\x{201D}]/u', $src)) { echo "\nconfig.
 if (strpos(file_get_contents("$deployDir/deploy.php"), 'PB_ALLOW_WEB') === false) { echo "\nUpload the new deploy.php into the deploy folder first.\n"; exit; }
 
 $best = '';
-foreach (['8.4', '8.3', '8.2', '8.1'] as $v) if (is_file("/usr/bin/php$v-cli")) { $best = "/usr/bin/php$v-cli"; break; }
-echo "\nCron command to use:\n  " . ($best ?: '/usr/bin/php8.3-cli') . " $deployDir/deploy.php\n";
+$best = "/usr/bin/php" . PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;
+echo "\nCron command to use:\n  " . $best . " $deployDir/deploy.php\n";
 
 echo "\nRunning a deploy now...\n";
 register_shutdown_function(function () use ($deployDir) {
