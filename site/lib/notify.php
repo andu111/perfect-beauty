@@ -3,10 +3,17 @@
 if (!defined('PB')) { http_response_code(404); exit; }
 require_once __DIR__ . '/push.php';
 
-function send_mail(string $to, string $subject, string $text): bool {
-    if (!filter_var($to, FILTER_VALIDATE_EMAIL)) return false;
+require_once __DIR__ . '/smtp.php';
+
+/** Sends through the bookings mailbox when its password is saved in Settings, otherwise through the server. */
+function send_mail(string $to, string $subject, string $text, ?string &$error = null): bool {
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL)) { $error = 'No valid email address.'; return false; }
     $from = setting('from_email', 'bookings@perfect-beauty.uk');
     $name = setting('business_name', 'Perfect Beauty');
+    if (setting('smtp_pass', '') !== '' && !getenv('PB_MAIL_LOG')) {
+        return smtp_send(['host' => setting('smtp_host', 'smtp.ionos.co.uk'), 'port' => (int)setting('smtp_port', 465),
+            'user' => $from, 'pass' => setting('smtp_pass')], $from, $name, $to, setting('notify_email') ?: $from, $subject, $text, $error);
+    }
     $headers = [
         'From: ' . mb_encode_mimeheader($name) . " <$from>",
         'Reply-To: ' . (setting('notify_email') ?: $from),

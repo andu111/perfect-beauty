@@ -128,7 +128,7 @@ case 'schedule': {
     $off->execute([now()->format('Y-m-d 00:00')]);
     $keys = ['business_name', 'notify_email', 'slot_step', 'buffer', 'min_notice_hours', 'max_days', 'cancel_hours', 'deposit_percent'];
     json_out(['ok' => true, 'hours' => hours_list(), 'time_off' => $off->fetchAll(),
-        'settings' => array_combine($keys, array_map(fn($k) => setting($k, ''), $keys)),
+        'settings' => array_combine($keys, array_map(fn($k) => setting($k, ''), $keys)) + ['from_email' => setting('from_email', ''), 'smtp_set' => setting('smtp_pass', '') !== ''],
         'services' => array_map(fn($s) => ['id' => (int)$s['id'], 'category' => $s['category'], 'name' => $s['name'],
             'price' => (int)$s['price'], 'duration' => (int)$s['duration'], 'active' => (bool)$s['active']], $svcs)]);
 }
@@ -182,6 +182,13 @@ case 'settings': {
         if ($e !== '' && !filter_var($e, FILTER_VALIDATE_EMAIL)) fail('That email address doesn\'t look right.');
         set_setting('notify_email', $e);
     }
+    if (isset($in['from_email'])) {
+        $e = trim((string)$in['from_email']);
+        if (!filter_var($e, FILTER_VALIDATE_EMAIL)) fail('The sending address doesn\'t look right.');
+        set_setting('from_email', $e);
+    }
+    if (isset($in['smtp_pass']) && $in['smtp_pass'] !== '') set_setting('smtp_pass', (string)$in['smtp_pass']);
+    if (!empty($in['smtp_clear'])) set_setting('smtp_pass', '');
     if (isset($in['business_name']) && trim($in['business_name']) !== '') set_setting('business_name', trim(mb_substr($in['business_name'], 0, 60)));
     json_out(['ok' => true]);
 }
@@ -212,6 +219,15 @@ case 'push_subscribe': {
         ON CONFLICT(endpoint) DO UPDATE SET p256dh=excluded.p256dh, auth=excluded.auth')
         ->execute([$ep, $k['p256dh'], $k['auth'], mb_substr((string)($in['label'] ?? ''), 0, 60), now()->format('Y-m-d H:i:s')]);
     json_out(['ok' => true]);
+}
+
+case 'mail_test': {
+    if (!$isPost) fail('Use POST.', 405);
+    $to = setting('notify_email', '');
+    if ($to === '') fail('Add your email under Alerts first, then save.');
+    $err = null;
+    $ok = send_mail($to, 'Test email from your booking system', "This is a test. If you can read this, booking emails are working.\n\nSent " . now()->format('j M Y, H:i') . "\n", $err);
+    $ok ? json_out(['ok' => true, 'to' => $to]) : fail('The email could not be sent: ' . ($err ?: 'the server refused it.'));
 }
 
 case 'push_test':
