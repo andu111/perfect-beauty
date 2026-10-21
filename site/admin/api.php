@@ -63,7 +63,8 @@ case 'logout':
 
 case 'me':
     json_out(['ok' => true, 'vapid' => vapid_keys()['public'], 'pending' => pending_count(),
-        'devices' => (int)db()->query('SELECT COUNT(*) FROM push_subs')->fetchColumn(),
+        'devices' => (int)db()->query('SELECT COUNT(*) FROM push_subs WHERE enabled=1')->fetchColumn(),
+        'device_hashes' => array_map(fn($e) => hash('sha256', $e), db()->query('SELECT endpoint FROM push_subs')->fetchAll(PDO::FETCH_COLUMN)),
         'notify_email' => setting('notify_email', ''), 'user' => $ME]);
 
 case 'bookings': {
@@ -134,7 +135,7 @@ case 'schedule': {
     $svcs = db()->query('SELECT * FROM services ORDER BY sort, id')->fetchAll();
     $off = db()->prepare('SELECT * FROM time_off WHERE end_at>=? ORDER BY start_at');
     $off->execute([now()->format('Y-m-d 00:00')]);
-    $keys = ['business_name', 'notify_email', 'slot_step', 'buffer', 'min_notice_hours', 'max_days', 'cancel_hours', 'deposit_percent'];
+    $keys = ['business_name', 'notify_email', 'slot_step', 'buffer', 'min_notice_hours', 'max_days', 'cancel_hours', 'deposit_percent', 'email_alerts'];
     json_out(['ok' => true, 'hours' => hours_list(), 'time_off' => $off->fetchAll(),
         'settings' => array_combine($keys, array_map(fn($k) => setting($k, ''), $keys)) + ['from_email' => setting('from_email', ''), 'smtp_set' => setting('smtp_pass', '') !== ''],
         'services' => array_map(fn($s) => ['id' => (int)$s['id'], 'category' => $s['category'], 'name' => $s['name'],
@@ -195,6 +196,7 @@ case 'settings': {
         if (!filter_var($e, FILTER_VALIDATE_EMAIL)) fail('The sending address doesn\'t look right.');
         set_setting('from_email', $e);
     }
+    if (isset($in['email_alerts'])) set_setting('email_alerts', $in['email_alerts'] ? '1' : '0');
     if (isset($in['smtp_pass']) && $in['smtp_pass'] !== '') set_setting('smtp_pass', (string)$in['smtp_pass']);
     if (!empty($in['smtp_clear'])) set_setting('smtp_pass', '');
     if (isset($in['business_name']) && trim($in['business_name']) !== '') set_setting('business_name', trim(mb_substr($in['business_name'], 0, 60)));
@@ -224,7 +226,8 @@ case 'push_subscribe': {
     $ep = (string)($in['endpoint'] ?? ''); $k = $in['keys'] ?? [];
     if (!preg_match('#^https://#', $ep) || empty($k['p256dh']) || empty($k['auth'])) fail('That device could not be registered.');
     db()->prepare('INSERT INTO push_subs(endpoint,p256dh,auth,label,created_at) VALUES(?,?,?,?,?)
-        ON CONFLICT(endpoint) DO UPDATE SET p256dh=excluded.p256dh, auth=excluded.auth')
+        ON CONFLICT(endpoint) DO UPDATE SET p256dh=excluded.p256dh, auth=excluded.auth, enabled=1,
+        label=CASE WHEN length(excluded.label)>0 THEN excluded.label ELSE push_subs.label END')
         ->execute([$ep, $k['p256dh'], $k['auth'], mb_substr((string)($in['label'] ?? ''), 0, 60), now()->format('Y-m-d H:i:s')]);
     json_out(['ok' => true]);
 }
@@ -238,10 +241,30 @@ case 'mail_test': {
     $ok ? json_out(['ok' => true, 'to' => $to]) : fail('The email could not be sent: ' . ($err ?: 'the server refused it.'));
 }
 
-case 'push_test':
+case 'push_test': {
     if (!$isPost) fail('Use POST.', 405);
-    $n = push_all('Notifications are on', 'You\'ll get a message like this for every new booking request.', '/admin/', pending_count());
+    $id = (int)($in['id'] ?? 0) ?: null;
+    $n = push_all('Notifications are on', 'You\'ll get a message like this for every new booking request.', '/admin/', pending_count(), $id);
     json_out(['ok' => true, 'sent' => $n]);
+}
+
+case 'devices':
+    json_out(['ok' => true, 'devices' => array_map(fn($d) => ['id' => (int)$d['id'], 'label' => $d['label'] ?: 'Phone',
+        'enabled' => (bool)$d['enabled'], 'added' => $d['created_at'], 'hash' => hash('sha256', $d['endpoint'])],
+        db()->query('SELECT * FROM push_subs ORDER BY created_at')->fetchAll())]);
+
+case 'device_update': {
+    if (!$isPost) fail('Use POST.', 405);
+    $id = (int)($in['id'] ?? 0);
+    if (array_key_exists('enabled', $in)) db()->prepare('UPDATE push_subs SET enabled=? WHERE id=?')->execute([$in['enabled'] ? 1 : 0, $id]);
+    if (isset($in['label']) && trim($in['label']) !== '') db()->prepare('UPDATE push_subs SET label=? WHERE id=?')->execute([mb_substr(trim($in['label']), 0, 40), $id]);
+    json_out(['ok' => true]);
+}
+
+case 'device_delete':
+    if (!$isPost) fail('Use POST.', 405);
+    db()->prepare('DELETE FROM push_subs WHERE id=?')->execute([(int)($in['id'] ?? 0)]);
+    json_out(['ok' => true]);
 
 case 'password': {
     if (!$isPost) fail('Use POST.', 405);

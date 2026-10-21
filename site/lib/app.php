@@ -35,6 +35,12 @@ function migrate(PDO $pdo): void {
         if (!in_array('user', $cols, true)) $pdo->exec('ALTER TABLE admin_tokens ADD COLUMN user TEXT');
         $pdo->exec('PRAGMA user_version = 2');
     }
+    if ($v < 3) {
+        // Each phone can be switched on or off for alerts; email alerts get their own switch.
+        $cols = array_column($pdo->query('PRAGMA table_info(push_subs)')->fetchAll(), 'name');
+        if (!in_array('enabled', $cols, true)) $pdo->exec('ALTER TABLE push_subs ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1');
+        $pdo->exec("INSERT OR IGNORE INTO settings(key,value) VALUES('email_alerts','1'); PRAGMA user_version = 3;");
+    }
 }
 
 function migrate_v1(PDO $pdo): void {

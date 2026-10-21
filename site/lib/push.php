@@ -96,10 +96,12 @@ function push_send(array $sub, array $message): int {
     return $code;
 }
 
-/** Push to every registered device; forgets devices the push service says are gone. */
-function push_all(string $title, string $body, string $url = '/admin/', ?int $badge = null): int {
+/** Push to every switched-on device (or just device $only); forgets devices the push service says are gone. */
+function push_all(string $title, string $body, string $url = '/admin/', ?int $badge = null, ?int $only = null): int {
     $sent = 0;
-    foreach (db()->query('SELECT * FROM push_subs')->fetchAll() as $s) {
+    $q = db()->prepare($only ? 'SELECT * FROM push_subs WHERE id=?' : 'SELECT * FROM push_subs WHERE enabled=1');
+    $q->execute($only ? [$only] : []);
+    foreach ($q->fetchAll() as $s) {
         try {
             $code = push_send($s, ['title' => $title, 'body' => $body, 'url' => $url, 'badge' => $badge, 'tag' => 'pb-' . md5($url)]);
         } catch (Throwable $e) { $code = 0; }

@@ -48,7 +48,7 @@ function pending_count(): int {
 function notify_new_request(array $b): void {
     $first = explode(' ', trim($b['name']))[0];
     push_all('New booking request', "$first · {$b['service_name']} · " . nice_when($b['start_at']), '/admin/#b' . $b['id'], pending_count());
-    send_mail(setting('notify_email', ''), "New booking request: {$b['name']}, " . nice_when($b['start_at']),
+    if (setting('email_alerts', '1') === '1') send_mail(setting('notify_email', ''), "New booking request: {$b['name']}, " . nice_when($b['start_at']),
         "New request waiting for you to accept or decline.\n\n" . booking_lines($b) .
         "\nClient: {$b['name']}\nPhone: {$b['phone']}\nEmail: {$b['email']}\n" .
         ($b['notes'] ? "Notes: {$b['notes']}\n" : '') . "\nOpen your bookings: " . site_url('/admin/') . "\n");
@@ -77,6 +77,6 @@ function notify_decision(array $b): void {
 
 function notify_customer_cancelled(array $b): void {
     push_all('Booking cancelled', "{$b['name']} cancelled {$b['service_name']} · " . nice_when($b['start_at']), '/admin/#b' . $b['id'], pending_count());
-    send_mail(setting('notify_email', ''), "Cancelled: {$b['name']}, " . nice_when($b['start_at']),
+    if (setting('email_alerts', '1') === '1') send_mail(setting('notify_email', ''), "Cancelled: {$b['name']}, " . nice_when($b['start_at']),
         "{$b['name']} cancelled online. The time is free again.\n\n" . booking_lines($b) . "\nPhone: {$b['phone']}\n");
 }

@@ -129,6 +129,22 @@ main{padding-block:16px calc(var(--tabh) + 28px + env(safe-area-inset-bottom,0px
 .off{display:flex;justify-content:space-between;align-items:center;gap:10px;padding-block:10px;border-top:1px solid var(--line)}
 .off:first-child{border-top:0}
 
+/* devices */
+.dev{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-block:12px;border-top:1px solid var(--line)}
+.dev:first-child{border-top:0}
+.dev .info{display:grid;gap:2px;min-width:0}
+.dev .info b{font-weight:600;overflow-wrap:anywhere}
+.dev .tools{display:flex;gap:14px;margin-top:4px}
+.toggle{position:relative;width:50px;height:30px;flex:none}
+.toggle input{opacity:0;position:absolute;inset:0;margin:0;cursor:pointer;z-index:1}
+.toggle span{position:absolute;inset:0;background:var(--line);border-radius:15px;transition:background .2s}
+.toggle span::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s}
+.toggle input:checked+span{background:var(--ok)}
+.toggle input:checked+span::after{transform:translateX(20px)}
+.toggle input:focus-visible+span{outline:2px solid var(--berry);outline-offset:2px}
+.renamebox{display:flex;gap:6px}
+.renamebox input{flex:1;min-width:0;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:7px 9px;font-size:16px}
+
 /* services */
 details.cat{border-top:1px solid var(--line);padding-block:10px}
 details.cat summary{font-weight:600;cursor:pointer}
@@ -218,6 +234,7 @@ $("#loginForm").addEventListener("submit",async e=>{e.preventDefault();$("#login
 
 async function start(){
   try{S.me=await api("me")}catch(e){if(e.message!=="auth"){document.body.innerHTML=`<p style="padding:24px">${esc(e.message)}</p>`}return}
+  S.thisHash=await thisDeviceHash();
   $("#login").hidden=true;$("#app").hidden=false;setPending(S.me.pending);
   const m=location.hash.match(/^#b(\d+)$/);if(m)S.focus=+m[1];
   go(S.tab);
@@ -232,12 +249,17 @@ function go(tab){S.tab=tab;document.querySelectorAll(".tabs button").forEach(b=>
 /* ---------- alerts banner ---------- */
 const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
 const standalone=matchMedia("(display-mode: standalone)").matches||navigator.standalone;
+async function thisDeviceHash(){
+  try{const reg=await navigator.serviceWorker.getRegistration("/admin/");const sub=reg&&await reg.pushManager.getSubscription();if(!sub)return null;
+    const h=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(sub.endpoint));return[...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,"0")).join("")}catch{return null}}
 function alertsBanner(){
   if(!("serviceWorker" in navigator))return"";
   if(isIOS&&!standalone)return`<div class="banner"><b>Get instant alerts on this iPhone</b><p class="muted">Tap the Share button in Safari, then <b>Add to Home Screen</b>. Open Bookings from your home screen and turn on notifications.</p></div>`;
   if(!("PushManager" in window)||!("Notification" in window))return"";
-  if(Notification.permission==="granted"&&S.me&&S.me.devices>0)return"";
-  return`<div class="banner"><b>Turn on booking alerts</b><p class="muted">Get a notification on this phone the moment someone books, even when it's locked.</p><button class="btn small" data-act="push">Turn on notifications</button></div>`;
+  if(S.thisHash&&S.me&&S.me.device_hashes.includes(S.thisHash))return"";
+  return`<div class="banner"><b>Turn on booking alerts on this phone</b><p class="muted">Get a notification the moment someone books, even when the phone is locked.</p>
+   <label class="field" for="devname">Name this phone<input id="devname" placeholder="e.g. Alexandra's iPhone" autocomplete="off"></label>
+   <button class="btn small" data-act="push">Turn on notifications</button></div>`;
 }
 
 /* ---------- requests ---------- */
@@ -350,14 +372,17 @@ function offRow(o){const s=o.start_at,e=o.end_at,full=s.endsWith("00:00")&&e.end
 /* ---------- settings ---------- */
 async function renderSettings(){
   $("#title").textContent="Settings";const v=$("#view");
-  S.schedule=await api("schedule");S.me=await api("me");const st=S.schedule.settings;
+  S.schedule=await api("schedule");S.me=await api("me");const st=S.schedule.settings;const {devices}=await api("devices");S.thisHash=await thisDeviceHash();
   const cats=[...new Set(S.schedule.services.map(s=>s.category))];
   const perm="Notification" in window?Notification.permission:"unsupported";
-  v.innerHTML=`<div class="eyebrow">Alerts</div>
-  <div class="card">${alertsBanner()||`<p><b>Notifications are on</b> for ${S.me.devices} device${S.me.devices===1?"":"s"}.</p>`}
-   ${perm==="granted"?`<button class="btn ghost" data-act="push">Re-register this phone</button>`:""}
-   ${S.me.devices?`<button class="btn ghost" data-act="push-test">Send a test notification</button>`:""}
-   <label class="field" for="semail">Also email new bookings to<input id="semail" type="email" value="${esc(st.notify_email)}" placeholder="name@example.com"></label></div>
+  v.innerHTML=`<div class="eyebrow">Phone notifications</div>
+  <div class="card">${alertsBanner()}
+   ${devices.length?`<p class="muted">Switch a phone off to stop its alerts without removing it. Switch it back on any time.</p><div>${devices.map(d=>devRow(d)).join("")}</div>`:`<p class="muted">No phones are set up for alerts yet.</p>`}</div>
+  <div class="eyebrow">Email alerts</div>
+  <div class="card"><div class="dev" style="padding-block:0"><div class="info"><b>Email me new bookings and cancellations</b><span class="muted">${st.email_alerts==="1"?"On":"Off"}</span></div>
+    <label class="toggle"><input type="checkbox" id="emailToggle" ${st.email_alerts==="1"?"checked":""} aria-label="Email alerts"><span></span></label></div>
+   <label class="field" for="semail">Send them to<input id="semail" type="email" value="${esc(st.notify_email)}" placeholder="name@example.com"></label>
+   <button class="btn ghost" data-act="email-save">Save email address</button></div>
   <div class="eyebrow">Sending emails</div>
   <div class="card"><p class="muted">Booking emails are sent from this mailbox. Enter its password once so they go out properly signed in, which keeps them out of spam folders.</p>
    <label class="field" for="sfrom">Send from<input id="sfrom" type="email" value="${esc(st.from_email)}"></label>
@@ -404,10 +429,17 @@ async function enablePush(){
     const reg=await navigator.serviceWorker.ready;
     let sub=await reg.pushManager.getSubscription();
     if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64(S.me.vapid)});
-    await api("push_subscribe",{...sub.toJSON(),label:isIOS?"iPhone":navigator.platform});
-    S.me=await api("me");toast("Notifications are on");go(S.tab);
+    const name=(($("#devname")||{}).value||"").trim()||(isIOS?"iPhone":"This device");
+    await api("push_subscribe",{...sub.toJSON(),label:name});
+    S.me=await api("me");S.thisHash=await thisDeviceHash();toast("Notifications are on for "+name);go(S.tab);
   }catch(e){if(e.message!=="auth")toast("Couldn't turn on notifications: "+e.message)}
 }
+
+function devRow(d){const me=d.hash===S.thisHash;
+  return`<div class="dev" data-dev="${d.id}"><div class="info"><b>${esc(d.label)}${me?' <span class="chip accepted">This phone</span>':""}</b>
+    <span class="muted">${d.enabled?"Alerts on":"Alerts off"} · added ${dayLabel(d.added.slice(0,16))}</span>
+    <div class="tools"><button class="linkbtn" data-act="dev-test">Test</button><button class="linkbtn" data-act="dev-rename">Rename</button><button class="linkbtn" data-act="dev-del">Remove</button></div></div>
+    <label class="toggle"><input type="checkbox" class="devToggle" ${d.enabled?"checked":""} aria-label="Alerts for ${esc(d.label)}"><span></span></label></div>`}
 
 /* ---------- actions ---------- */
 document.addEventListener("click",async e=>{
@@ -418,6 +450,13 @@ document.addEventListener("click",async e=>{
   try{switch(act){
     case "push":return enablePush();
     case "push-test":{const j=await api("push_test",{});toast(j.sent?"Test sent":"No device received it. Re-register this phone.");return}
+    case "dev-test":{const did=+b.closest("[data-dev]").dataset.dev;const j=await api("push_test",{id:did});toast(j.sent?"Test sent to "+b.closest(".dev").querySelector("b").firstChild.textContent.trim():"It didn't arrive. Remove this phone and turn notifications on again from it.");return}
+    case "dev-rename":{const row=b.closest(".dev"),lbl=row.querySelector("b").firstChild.textContent.trim();
+      b.closest(".tools").outerHTML=`<div class="renamebox"><input value="${esc(lbl)}" aria-label="Phone name"><button class="btn small" data-act="dev-rename-save">Save</button></div>`;row.querySelector(".renamebox input").focus();return}
+    case "dev-rename-save":{const did=+b.closest("[data-dev]").dataset.dev;await api("device_update",{id:did,label:b.previousElementSibling.value});toast("Renamed");renderSettings();return}
+    case "dev-del":{const row=b.closest(".dev");if(b.dataset.sure!=="1"){b.dataset.sure="1";b.textContent="Tap again to remove";return}
+      await api("device_delete",{id:+row.dataset.dev});toast("Phone removed");S.me=await api("me");renderSettings();return}
+    case "email-save":await api("settings",{notify_email:$("#semail").value});toast("Email address saved");return;
     case "accept":b.disabled=true;{const j=await api("decide",{id,status:"accepted"});setPending(j.pending);toast(`Accepted. ${j.booking.email?"Client emailed.":""}`);go(S.tab);return}
     case "decline":card.querySelector(".row[data-id]").hidden=true;card.querySelector(".decline").hidden=false;return;
     case "cancel-ask":card.querySelector(".row[data-id]").hidden=true;card.querySelector(".decline").hidden=false;return;
@@ -449,6 +488,9 @@ document.addEventListener("change",e=>{
   if(t.classList.contains("isopen")){const r=t.closest(".hrow");t.parentElement.lastChild.textContent=t.checked?" Open":" Closed";
     r.querySelector(".pair").hidden=!t.checked;r.querySelector(".addbrk").hidden=!t.checked;if(!t.checked)r.querySelector(".brk").hidden=true}
   if(t.id==="opart")$("#otimes").hidden=!t.checked;
+  if(t.classList.contains("devToggle")){const row=t.closest(".dev"),name=row.querySelector("b").firstChild.textContent.trim();
+    api("device_update",{id:+row.dataset.dev,enabled:t.checked}).then(()=>{const m=row.querySelector(".info .muted");m.textContent=m.textContent.replace(/^Alerts (on|off)/,t.checked?"Alerts on":"Alerts off");toast(`Alerts ${t.checked?"on":"off"} for ${name}`)}).catch(err=>{t.checked=!t.checked;toast(err.message)})}
+  if(t.id==="emailToggle"){api("settings",{email_alerts:t.checked}).then(()=>{t.closest(".dev").querySelector(".muted").textContent=t.checked?"On":"Off";toast(`Email alerts ${t.checked?"on":"off"}`)}).catch(err=>{t.checked=!t.checked;toast(err.message)})}
   if(t.id==="osd"&&$("#oed").value<t.value)$("#oed").value=t.value;
 });
 document.addEventListener("click",e=>{const a=e.target.closest(".addbrk");if(!a)return;const brk=a.closest(".hrow").querySelector(".brk");brk.hidden=!brk.hidden;a.textContent=brk.hidden?"Add a break":"Remove break"});
