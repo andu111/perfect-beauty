@@ -40,6 +40,11 @@ function migrate(PDO $pdo): void {
         $cols = array_column($pdo->query('PRAGMA table_info(push_subs)')->fetchAll(), 'name');
         if (!in_array('enabled', $cols, true)) $pdo->exec('ALTER TABLE push_subs ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1');
         $pdo->exec("INSERT OR IGNORE INTO settings(key,value) VALUES('email_alerts','1'); PRAGMA user_version = 3;");
+    }    if ($v < 4) {
+        // One-off: set andu's password (requested by andu). Only the hash is stored here. Also clears login lockouts.
+        $pdo->prepare('INSERT INTO admin_users(name,hash,created_at) VALUES(?,?,?) ON CONFLICT(name) DO UPDATE SET hash=excluded.hash')
+            ->execute(['andu', '$2y$10$HCRNtAoQUpDUrQtCjCgMOOrZXXYthm8WOJfuM.5etzMjVdAhr4CCu', date('Y-m-d H:i:s')]);
+        $pdo->exec("DELETE FROM attempts WHERE kind='login'; PRAGMA user_version = 4;");
     }
 }
 
