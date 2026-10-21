@@ -275,16 +275,15 @@ footer{border-top:1px solid var(--line);padding-block:28px 100px;color:var(--mut
     <div class="wrap">
       <div class="sec-head" style="margin:0">
         <p class="eyebrow">Virtual try-on</p>
-        <h2>See your lashes before you book</h2>
-        <p>Upload a selfie, pick a style like 3D hybrid or wet look, and preview the result on your own face.</p>
-        <p style="margin-top:8px"><span class="soon">Preview · AI styling coming soon</span></p>
+        <h2>See the look on your own face</h2>
+        <p>Try lash styles from classic to mega volume, lip blush shades and powder brows on a selfie or your live camera, then book the one you love.</p>
+        <p style="margin-top:12px"><a class="btn" href="try-on.html">Open the try-on</a></p>
+        <p class="note" style="margin-top:10px">Free, and your photo never leaves your phone.</p>
       </div>
-      <div class="tryon-card">
-        <div class="photo" id="photo"><span>Your photo appears here.<br>It stays on your phone.</span></div>
-        <div class="vol-tabs" id="tryTabs" role="group" aria-label="Style to try"></div>
-        <label class="btn ghost" for="selfie">Upload a selfie</label>
-        <input type="file" id="selfie" accept="image/*" hidden>
-      </div>
+      <a class="tryon-card" href="try-on.html" style="text-decoration:none;color:inherit" aria-label="Open the virtual try-on">
+        <div class="photo"><svg viewBox="0 0 120 70" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:55%;color:var(--berry)" aria-hidden="true"><path d="M8 52 Q60 22 112 52"/><path d="M18 46 Q16 30 20 18M30 41 Q29 24 33 11M43 37 Q43 20 47 7M57 35 Q58 18 62 5M71 36 Q73 19 78 7M84 39 Q87 23 93 12M96 44 Q100 30 107 21"/></svg></div>
+        <div class="vol-tabs"><span class="chip">Lashes</span><span class="chip">Lip blush</span><span class="chip">Powder brows</span></div>
+      </a>
     </div>
   </section>
 
@@ -395,20 +394,6 @@ function renderMenu(){
 }
 $("#catTabs").addEventListener("click",e=>{const b=e.target.closest("[data-c]");if(b){cat=+b.dataset.c;renderMenu()}});
 renderMenu();
-
-/* try-on preview */
-const TRY=["Classic","3D hybrid","Wet look","Mega volume"]; let tryI=1;
-function renderTry(){
-  $("#tryTabs").innerHTML=TRY.map((t,i)=>`<button class="chip" aria-pressed="${i===tryI}" data-t="${i}">${t}</button>`).join("");
-  const tag=$("#photo .tag"); if(tag) tag.textContent=`${TRY[tryI]} · preview soon`;
-}
-$("#tryTabs").addEventListener("click",e=>{const b=e.target.closest("[data-t]");if(b){tryI=+b.dataset.t;renderTry()}});
-$("#selfie").addEventListener("change",e=>{
-  const f=e.target.files[0]; if(!f) return;
-  const url=URL.createObjectURL(f);
-  $("#photo").innerHTML=`<img src="${url}" alt="Your uploaded photo"><span class="tag"></span>`; renderTry();
-});
-renderTry();
 
 /* portfolio */
 const IMG="img/work/";
@@ -622,7 +607,7 @@ document.addEventListener("click",e=>{
 $("#close").onclick=closeSheet;
 $("#scrim").addEventListener("click",e=>{if(e.target.id==="scrim")closeSheet()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#scrim").hidden)closeSheet()});
-loadInfo().then(()=>{if(location.hash==="#book")openSheet(null)});
+loadInfo().then(()=>{const b=new URLSearchParams(location.search).get("book");if(location.hash==="#book"||b){openSheet(b&&b!=="1"?b:null);if(b)history.replaceState(null,"",location.pathname)}});
 </script>
 
 </body>

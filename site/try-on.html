@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Virtual Try-On · Perfect Beauty</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..600;1,6..96,400..500&family=Figtree:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap">
+<style>
+/* Mobile-first: the photo is the stage; treatment controls sit under it like a camera app */
+:root{
+  --bg:#F7F5F8; --surface:#FFFFFF; --ink:#1F1A24; --muted:#6B6372; --line:#E4DEE6;
+  --berry:#8A2F55; --berry-ink:#FFFFFF; --berry-soft:#F3E4EB;
+  --display:"Bodoni Moda",Didot,Georgia,serif; --body:"Figtree",system-ui,-apple-system,sans-serif; --mono:"DM Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#141117; --surface:#1D1922; --ink:#F1ECF2; --muted:#A79FAD; --line:#2F2935;
+  --berry:#E07FA6; --berry-ink:#1A0F15; --berry-soft:#33202A; color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--berry);outline-offset:2px}
+h1,h2,h3{margin:0;font-weight:500;text-wrap:balance}
+p{margin:0}
+.wrap{max-width:720px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+header .wrap{display:flex;justify-content:space-between;align-items:center;padding-block:12px}
+.logo{font-family:var(--display);font-size:22px;color:var(--ink);text-decoration:none}
+.logo i{color:var(--berry)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:999px;padding:12px 20px;font-weight:600;background:var(--berry);color:var(--berry-ink);text-decoration:none;min-height:46px}
+.btn.ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.btn.small{min-height:36px;padding:7px 14px;font-size:14px}
+main{padding-block:20px calc(40px + env(safe-area-inset-bottom,0px));display:grid;gap:16px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--berry)}
+.intro{display:grid;gap:8px}
+.intro h1{font-family:var(--display);font-size:clamp(34px,8vw,52px);font-weight:400}
+.intro p{color:var(--muted)}
+
+/* stage */
+.stage{position:relative;border-radius:20px;overflow:hidden;background:var(--berry-soft);display:grid;place-items:center;min-height:300px}
+.stage canvas{display:block;width:100%;height:auto;max-height:72vh;object-fit:contain}
+.start{display:grid;gap:12px;justify-items:center;text-align:center;padding:32px 20px}
+.start svg{width:96px;height:auto;color:var(--berry)}
+.start p{color:var(--muted);max-width:32ch;font-size:15px}
+.start .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.overlay{position:absolute;left:12px;right:12px;bottom:12px;display:flex;justify-content:space-between;gap:8px;pointer-events:none}
+.overlay>*{pointer-events:auto}
+.pill{border:0;border-radius:999px;padding:9px 14px;font-size:14px;font-weight:600;background:rgba(20,15,22,.62);color:#fff;backdrop-filter:blur(6px)}
+.pill[aria-pressed="true"]{background:#fff;color:#1F1A24}
+.status{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(20,15,22,.7);color:#fff;font-size:13px;padding:6px 12px;border-radius:999px;white-space:nowrap;max-width:calc(100% - 24px);overflow:hidden;text-overflow:ellipsis}
+
+/* controls */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px;display:grid;gap:12px}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);background:var(--bg);border-radius:999px;padding:4px;gap:4px}
+.tabs button{border:0;background:none;border-radius:999px;padding:9px 0;font-weight:600;font-size:15px;color:var(--muted);position:relative}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.tabs button .on{position:absolute;top:7px;right:12px;width:7px;height:7px;border-radius:50%;background:var(--berry)}
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:8px 14px;font-size:14px;font-weight:500}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.swatches{display:flex;gap:12px;flex-wrap:wrap}
+.sw{width:40px;height:40px;border-radius:50%;border:3px solid var(--surface);box-shadow:0 0 0 1px var(--line);padding:0}
+.sw[aria-pressed="true"]{box-shadow:0 0 0 2px var(--ink)}
+.sw.none{background:linear-gradient(135deg,var(--bg) 46%,var(--muted) 47% 53%,var(--bg) 54%)}
+.slider{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;font-size:14px;color:var(--muted)}
+.slider input{accent-color:var(--berry);width:100%}
+.look{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.look b{font-family:var(--display);font-size:22px;font-weight:500}
+.look span{display:block;font-family:var(--mono);font-size:13px;color:var(--muted)}
+.fine{font-size:13px;color:var(--muted)}
+.fine b{color:var(--ink);font-weight:600}
+</style>
+</head>
+<body>
+<header><div class="wrap"><a class="logo" href="./">Perfect <i>Beauty</i></a><a class="btn small" href="./?book=1">Book</a></div></header>
+
+<main class="wrap">
+  <div class="intro">
+    <p class="eyebrow">Virtual try-on</p>
+    <h1>Try a look on your own face</h1>
+    <p>Pick a lash style, a lip blush shade or powder brows and see it on your photo or live camera. It's a preview to help you choose, not an exact result.</p>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="start" id="start">
+      <svg viewBox="0 0 120 70" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M8 52 Q60 22 112 52"/><path d="M18 46 Q16 30 20 18M30 41 Q29 24 33 11M43 37 Q43 20 47 7M57 35 Q58 18 62 5M71 36 Q73 19 78 7M84 39 Q87 23 93 12M96 44 Q100 30 107 21"/></svg>
+      <p>Your photo stays on your phone. Nothing is uploaded or saved.</p>
+      <div class="row">
+        <button class="btn" id="camBtn">Use my camera</button>
+        <label class="btn ghost" for="file">Upload a photo</label>
+        <input type="file" id="file" accept="image/*" hidden>
+      </div>
+      <p class="fine">Best results: face the camera in good light, eyes open, no glasses.</p>
+    </div>
+    <canvas id="cv" hidden></canvas>
+    <div class="status" id="status" hidden></div>
+    <div class="overlay" id="overlay" hidden>
+      <button class="pill" id="compare" aria-pressed="false">Hold to see before</button>
+      <span style="display:flex;gap:8px"><button class="pill" id="saveBtn">Save</button><button class="pill" id="resetBtn">New photo</button></span>
+    </div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="tabs" role="tablist" id="tabs">
+      <button role="tab" data-tab="lashes" aria-selected="true">Lashes<span class="on" hidden></span></button>
+      <button role="tab" data-tab="lips" aria-selected="false">Lips<span class="on" hidden></span></button>
+      <button role="tab" data-tab="brows" aria-selected="false">Brows<span class="on" hidden></span></button>
+    </div>
+    <div id="controls"></div>
+    <div class="look" id="look"></div>
+  </div>
+  <p class="fine">The preview runs on your phone using Google's free face-tracking tool. Real results depend on your natural lashes, lips and skin; Alexandra will advise you at your appointment.</p>
+</main>
+
+<script type="module">
+const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+const MODEL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+const $ = s => document.querySelector(s);
+
+/* ---------- looks: what each option draws, and which treatment it books ---------- */
+const LASHES = {
+  classic: {label:"Classic", svc:"Classic lashes (1D) full set", n:42, fan:1, len:.21, spread:0,   width:1.0, spikes:0,  curl:.42},
+  natural: {label:"Natural volume", svc:"2D full set",           n:46, fan:2, len:.22, spread:.10, width:.85, spikes:0,  curl:.42},
+  hybrid:  {label:"3D hybrid", svc:"3D hybrid full set",         n:52, fan:3, len:.24, spread:.16, width:.8,  spikes:.22,curl:.45},
+  volume:  {label:"Russian volume", svc:"Russian volume full set",n:48, fan:5, len:.245, spread:.24, width:.6,  spikes:0,  curl:.47},
+  mega:    {label:"Mega volume", svc:"Mega volume full set",     n:52, fan:9, len:.265, spread:.30, width:.5,  spikes:0,  curl:.5},
+  wet:     {label:"Wet look", svc:"Wet look full set",           n:20, fan:5, len:.26, spread:0,   width:.75, spikes:0,  curl:.45, wet:true},
+};
+const LIPS = [
+  {id:"nude", label:"Nude rose", c:[196,120,120]}, {id:"peach", label:"Peach", c:[226,128,104]},
+  {id:"coral", label:"Coral", c:[222,90,86]}, {id:"berry", label:"Berry", c:[160,42,78]}, {id:"red", label:"Classic red", c:[190,30,46]},
+];
+const BROWS = [
+  {id:"taupe", label:"Taupe", c:[120,100,88]}, {id:"soft", label:"Soft brown", c:[96,68,52]},
+  {id:"dark", label:"Dark brown", c:[58,40,32]}, {id:"black", label:"Soft black", c:[34,28,28]},
+];
+const S = {tab:"lashes", lashes:"hybrid", lips:null, lipAmt:.6, brows:null, compare:false, mode:null, img:null, lm:null, prices:{}};
+
+/* face mesh points (MediaPipe Face Landmarker, 478 points) */
+const EYE_R_UP = [33,246,161,160,159,158,157,173,133], EYE_R_LO = [33,7,163,144,145,153,154,155,133];
+const EYE_L_UP = [263,466,388,387,386,385,384,398,362], EYE_L_LO = [263,249,390,373,374,380,381,382,362];
+const LIP_OUT = [61,185,40,39,37,0,267,269,270,409,291,375,321,405,314,17,84,181,91,146];
+const LIP_IN  = [78,191,80,81,82,13,312,311,310,415,308,324,318,402,317,14,87,178,88,95];
+const BROW_R = {up:[70,63,105,66,107], lo:[46,53,52,65,55]};    // outer -> inner
+const BROW_L = {up:[300,293,334,296,336], lo:[276,283,282,295,285]};
+
+/* ---------- face tracking ---------- */
+let landmarker = null, loading = null;
+async function getLandmarker(){
+  if (landmarker) return landmarker;
+  loading ??= (async () => {
+    status("Loading face tracking…");
+    const {FaceLandmarker, FilesetResolver} = await import(`${MP}/vision_bundle.mjs`);
+    const files = await FilesetResolver.forVisionTasks(`${MP}/wasm`);
+    const opts = d => ({baseOptions:{modelAssetPath:MODEL, delegate:d}, runningMode:"IMAGE", numFaces:1});
+    try { landmarker = await FaceLandmarker.createFromOptions(files, opts("GPU")); }
+    catch { landmarker = await FaceLandmarker.createFromOptions(files, opts("CPU")); }
+    status("");
+    return landmarker;
+  })();
+  return loading;
+}
+
+/* ---------- drawing ---------- */
+const cv = $("#cv"), ctx = cv.getContext("2d");
+const P = (lm, i) => ({x: lm[i].x * cv.width, y: lm[i].y * cv.height});
+const dist = (a,b) => Math.hypot(a.x-b.x, a.y-b.y);
+const rgba = (c,a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+function path(pts, close=true){ ctx.beginPath(); pts.forEach((p,i)=> i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); if(close) ctx.closePath(); }
+// smooth curve through points (Catmull-Rom), returns dense samples
+function smooth(pts, per=8){
+  const out=[];
+  for(let i=0;i<pts.length-1;i++){
+    const p0=pts[Math.max(0,i-1)], p1=pts[i], p2=pts[i+1], p3=pts[Math.min(pts.length-1,i+2)];
+    for(let k=0;k<per;k++){ const t=k/per, t2=t*t, t3=t2*t;
+      out.push({x:.5*((2*p1.x)+(-p0.x+p2.x)*t+(2*p0.x-5*p1.x+4*p2.x-p3.x)*t2+(-p0.x+3*p1.x-3*p2.x+p3.x)*t3),
+                y:.5*((2*p1.y)+(-p0.y+p2.y)*t+(2*p0.y-5*p1.y+4*p2.y-p3.y)*t2+(-p0.y+3*p1.y-3*p2.y+p3.y)*t3)}); }
+  }
+  out.push(pts[pts.length-1]); return out;
+}
+// seeded random so lashes don't flicker between frames
+const rnd = seed => () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+function drawLips(lm, shade, amt){
+  const out = LIP_OUT.map(i=>P(lm,i)), inn = LIP_IN.map(i=>P(lm,i));
+  const h = dist(P(lm,0),P(lm,17)), feather = Math.max(1, h*.05);
+  const lip = new Path2D(), sm = smooth([...out,out[0]],4);
+  sm.forEach((p,i)=> i?lip.lineTo(p.x,p.y):lip.moveTo(p.x,p.y)); lip.closePath();
+  const mouth = smooth([...inn,inn[0]],4); mouth.forEach((p,i)=> i?lip.lineTo(p.x,p.y):lip.moveTo(p.x,p.y)); lip.closePath();
+  ctx.save();
+  ctx.filter = `blur(${feather}px)`;
+  ctx.globalCompositeOperation = "color";    ctx.globalAlpha = .55*amt + .2; ctx.fillStyle = rgba(shade.c,1); ctx.fill(lip,"evenodd");
+  ctx.globalCompositeOperation = "multiply"; ctx.globalAlpha = .45*amt;      ctx.fill(lip,"evenodd");
+  ctx.globalCompositeOperation = "soft-light"; ctx.globalAlpha = .25*amt;    ctx.fill(lip,"evenodd");
+  ctx.restore();
+}
+
+function drawBrow(lm, side, shade){
+  const up = side.up.map(i=>P(lm,i)), lo = side.lo.map(i=>P(lm,i));
+  const outer = up[0], inner = up[up.length-1], w = dist(outer, inner);
+  const poly = [...smooth(up,6), ...smooth([...lo].reverse(),6)];
+  // ombré: soft at the inner head, stronger towards the tail
+  const g = ctx.createLinearGradient(inner.x, inner.y, outer.x, outer.y);
+  g.addColorStop(0, rgba(shade.c,.18)); g.addColorStop(.35, rgba(shade.c,.55)); g.addColorStop(1, rgba(shade.c,.75));
+  ctx.save(); ctx.filter = `blur(${Math.max(1,w*.035)}px)`; ctx.globalCompositeOperation = "multiply";
+  path(poly); ctx.fillStyle = g; ctx.fill();
+  ctx.globalAlpha = .35; ctx.globalCompositeOperation = "source-over"; ctx.fill();
+  ctx.restore();
+}
+
+function drawLashes(lm, upIdx, loIdx, style, seed){
+  const up = upIdx.map(i=>P(lm,i)), lo = loIdx.map(i=>P(lm,i));
+  const outer = up[0], inner = up[up.length-1], w = dist(outer, inner);
+  const lidC = {x: lo.reduce((a,p)=>a+p.x,0)/lo.length, y: lo.reduce((a,p)=>a+p.y,0)/lo.length};
+  const line = smooth(up, 10); // outer -> inner
+  const r = rnd(seed), dark = "rgba(16,12,14,.92)";
+  // darker lash line
+  ctx.save(); ctx.lineCap="round"; ctx.lineJoin="round"; ctx.strokeStyle="rgba(16,12,14,.55)"; ctx.lineWidth=Math.max(1,w*.025);
+  ctx.filter=`blur(${Math.max(.5,w*.006)}px)`; path(line,false); ctx.stroke(); ctx.restore();
+
+  const outDir = {x: outer.x-inner.x, y: outer.y-inner.y}; const ol = Math.hypot(outDir.x,outDir.y); outDir.x/=ol; outDir.y/=ol;
+  ctx.save(); ctx.fillStyle = dark;
+  for (let k=0; k<style.n; k++){
+    const t = (k+.5)/style.n;                       // 0 = outer corner, 1 = inner corner
+    const idx = Math.min(line.length-2, Math.floor(t*(line.length-1)));
+    const a = line[idx], b = line[idx+1];
+    let nx = -(b.y-a.y), ny = (b.x-a.x); const nl = Math.hypot(nx,ny)||1; nx/=nl; ny/=nl;
+    if ((a.x-lidC.x)*nx + (a.y-lidC.y)*ny < 0){ nx=-nx; ny=-ny; }   // point away from the eye
+    // lean towards the outer corner, more so at the outside
+    const lean = .55*(1-t) + .05;
+    let dx = nx*(1-lean) + outDir.x*lean, dy = ny*(1-lean) + outDir.y*lean; const dl=Math.hypot(dx,dy); dx/=dl; dy/=dl;
+    // length profile: short at the inner corner, longest just inside the outer corner
+    const prof = Math.sin(Math.PI*Math.min(1, (1-t)*.85+.12)) * (.55 + .45*(1-t));
+    let L = w*style.len*(.45+.75*prof);
+    const spike = style.spikes && r() < style.spikes;
+    if (spike) L *= 1.22;
+    if (style.wet){
+      // wet look: several strands from neighbouring roots meet in one glossy spike
+      const ang = Math.atan2(dy,dx) + (r()-.5)*.05, tipx = a.x + Math.cos(ang)*L + nx*L*style.curl*.16, tipy = a.y + Math.sin(ang)*L + ny*L*style.curl*.16;
+      const tx = b.x-a.x, ty = b.y-a.y, tl = Math.hypot(tx,ty)||1;
+      for (let f=0; f<style.fan; f++){ const off = (f/(style.fan-1)-.5)*w*.045;
+        strand(a.x+tx/tl*off, a.y+ty/tl*off, tipx, tipy, nx, ny, L, w*.012*style.width); }
+      continue;
+    }
+    for (let f=0; f<style.fan; f++){
+      const sp = style.fan>1 ? (f/(style.fan-1)-.5)*style.spread : 0;
+      const jitter = (r()-.5)*.06;
+      const ang = Math.atan2(dy,dx) + sp + jitter;
+      const ll = L*(.88 + r()*.18);
+      lash(a.x+(r()-.5)*w*.01, a.y+(r()-.5)*w*.01, ang, ll, w*.011*style.width*(spike?1.3:1), style.curl, nx, ny);
+    }
+  }
+  ctx.restore();
+}
+// one tapered, curled lash
+function lash(x, y, ang, L, base, curl, nx, ny){
+  const ex = x + Math.cos(ang)*L, ey = y + Math.sin(ang)*L;
+  // curl upward (away from the eye) near the tip
+  const mx = x + Math.cos(ang)*L*.55 + nx*L*curl*.22, my = y + Math.sin(ang)*L*.55 + ny*L*curl*.22;
+  taper(x, y, mx, my, ex + nx*L*curl*.18, ey + ny*L*curl*.18, base);
+}
+// a strand from a root to a shared spike tip, bowed slightly away from the eye
+function strand(x, y, tx, ty, nx, ny, L, base){
+  taper(x, y, (x+tx)/2 + nx*L*.08, (y+ty)/2 + ny*L*.08, tx, ty, base);
+}
+function taper(x, y, mx, my, tx, ty, base){
+  const pts=[]; for(let i=0;i<=10;i++){const u=i/10; pts.push({x:(1-u)*(1-u)*x+2*(1-u)*u*mx+u*u*tx, y:(1-u)*(1-u)*y+2*(1-u)*u*my+u*u*ty});}
+  const left=[], right=[];
+  for(let i=0;i<pts.length;i++){
+    const p=pts[i], q=pts[Math.min(i+1,pts.length-1)], o=pts[Math.max(i-1,0)];
+    let vx=q.x-o.x, vy=q.y-o.y; const vl=Math.hypot(vx,vy)||1; vx/=vl; vy/=vl;
+    const wdt = base*(1 - i/pts.length)*.5 + .15;
+    left.push({x:p.x - vy*wdt, y:p.y + vx*wdt}); right.push({x:p.x + vy*wdt, y:p.y - vx*wdt});
+  }
+  ctx.beginPath(); left.forEach((p,i)=> i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); right.reverse().forEach(p=>ctx.lineTo(p.x,p.y)); ctx.closePath(); ctx.fill();
+}
+
+function render(source, lm, mirror){
+  ctx.save(); ctx.setTransform(1,0,0,1,0,0);
+  if (mirror){ ctx.translate(cv.width,0); ctx.scale(-1,1); }
+  ctx.drawImage(source, 0, 0, cv.width, cv.height);
+  if (lm && !S.compare){
+    if (S.brows){ const sh=BROWS.find(b=>b.id===S.brows); drawBrow(lm,BROW_R,sh); drawBrow(lm,BROW_L,sh); }
+    if (S.lips) drawLips(lm, LIPS.find(l=>l.id===S.lips), S.lipAmt);
+    if (S.lashes){ const st=LASHES[S.lashes]; drawLashes(lm,EYE_R_UP,EYE_R_LO,st,11); drawLashes(lm,EYE_L_UP,EYE_L_LO,st,29); }
+  }
+  ctx.restore();
+}
+
+/* ---------- photo mode ---------- */
+async function usePhoto(src){
+  stopCamera();
+  const img = new Image(); img.decoding="async"; if (/^https?:/.test(src)) img.crossOrigin = "anonymous"; img.src = src;
+  try { await img.decode(); } catch { return status("That photo couldn't be opened. Try another one.", 4000); }
+  const scale = Math.min(1, 1400/Math.max(img.naturalWidth, img.naturalHeight));
+  cv.width = Math.round(img.naturalWidth*scale); cv.height = Math.round(img.naturalHeight*scale);
+  showStage(); S.mode="photo"; S.img=img; S.lm=null; render(img,null,false);
+  const lmk = await getLandmarker().catch(()=>null);
+  if (!lmk) return status("Face tracking couldn't load. Check your connection and try again.", 6000);
+  await lmk.setOptions({runningMode:"IMAGE"});
+  const res = lmk.detect(cv.width===img.naturalWidth ? img : await scaled(img));
+  S.lm = res.faceLandmarks && res.faceLandmarks[0] || null;
+  if (!S.lm) status("We couldn't find a face. Try a front-facing photo in good light.", 6000);
+  draw();
+}
+async function scaled(img){ const c=document.createElement("canvas"); c.width=cv.width; c.height=cv.height; c.getContext("2d").drawImage(img,0,0,c.width,c.height); return c; }
+
+/* ---------- live camera mode ---------- */
+let stream=null, video=null, raf=0, lastTs=-1;
+async function startCamera(){
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"user", width:{ideal:1280}, height:{ideal:960}}, audio:false});
+  } catch { return status("Camera access was blocked. Allow the camera in your browser settings, or upload a photo instead.", 6000); }
+  video = document.createElement("video"); video.playsInline = true; video.muted = true; video.srcObject = stream; await video.play();
+  cv.width = video.videoWidth; cv.height = video.videoHeight; showStage(); S.mode="camera";
+  const lmk = await getLandmarker().catch(()=>null);
+  if (!lmk) { status("Face tracking couldn't load. Check your connection and try again.", 6000); }
+  else await lmk.setOptions({runningMode:"VIDEO"});
+  const loop = () => {
+    if (S.mode!=="camera") return;
+    if (lmk && video.currentTime !== lastTs){ lastTs = video.currentTime;
+      const res = lmk.detectForVideo(video, performance.now()); S.lm = res.faceLandmarks && res.faceLandmarks[0] || null; }
+    render(video, S.lm, true); raf = requestAnimationFrame(loop);
+  };
+  loop();
+}
+function stopCamera(){ cancelAnimationFrame(raf); if (stream) stream.getTracks().forEach(t=>t.stop()); stream=null; if (S.mode==="camera") S.mode=null; }
+
+function draw(){ if (S.mode==="photo") render(S.img, S.lm, false); updateUI(); }
+function showStage(){ $("#start").hidden=true; cv.hidden=false; $("#overlay").hidden=false; }
+let stT; function status(m, ms){ const el=$("#status"); el.textContent=m; el.hidden=!m; clearTimeout(stT); if(ms) stT=setTimeout(()=>el.hidden=true, ms); }
+
+/* ---------- controls ---------- */
+const money = p => "£"+p;
+function controlsHTML(){
+  if (S.tab==="lashes") return `<div class="chips">${[["",'None'],...Object.entries(LASHES).map(([k,v])=>[k,v.label])].map(([k,l])=>`<button class="chip" data-lash="${k}" aria-pressed="${(S.lashes||"")===k}">${l}</button>`).join("")}</div>`;
+  if (S.tab==="lips") return `<div class="swatches"><button class="sw none" data-lip="" aria-pressed="${!S.lips}" aria-label="No lip colour"></button>${LIPS.map(l=>`<button class="sw" data-lip="${l.id}" aria-pressed="${S.lips===l.id}" aria-label="${l.label}" title="${l.label}" style="background:${rgba(l.c,1)}"></button>`).join("")}</div>
+    <label class="slider" for="amt"><span>Soft</span><input type="range" id="amt" min="0.15" max="1" step="0.05" value="${S.lipAmt}"><span>Bold</span></label>`;
+  return `<div class="swatches"><button class="sw none" data-brow="" aria-pressed="${!S.brows}" aria-label="No brow shading"></button>${BROWS.map(b=>`<button class="sw" data-brow="${b.id}" aria-pressed="${S.brows===b.id}" aria-label="${b.label}" title="${b.label}" style="background:${rgba(b.c,1)}"></button>`).join("")}</div>`;
+}
+function currentLook(){
+  if (S.tab==="lashes" && S.lashes) return {name:LASHES[S.lashes].label+" lashes", svc:LASHES[S.lashes].svc};
+  if (S.tab==="lips" && S.lips) return {name:"Lip blush · "+LIPS.find(l=>l.id===S.lips).label, svc:"Lip blush"};
+  if (S.tab==="brows" && S.brows) return {name:"Powder brows · "+BROWS.find(b=>b.id===S.brows).label, svc:"Powder brows"};
+  return null;
+}
+function updateUI(){
+  document.querySelectorAll("#tabs button").forEach(b=>{ b.setAttribute("aria-selected", b.dataset.tab===S.tab); b.querySelector(".on").hidden = !S[b.dataset.tab]; });
+  $("#controls").innerHTML = controlsHTML();
+  const l = currentLook(), p = l && S.prices[l.svc];
+  $("#look").innerHTML = l ? `<div><b>${l.name}</b><span>${p?`${money(p.price)} · ${p.dur}`:"&nbsp;"}</span></div><a class="btn" href="./?book=${encodeURIComponent(l.svc)}">Book this look</a>`
+    : `<p class="fine">Choose a style above to see it on your face.</p>`;
+}
+document.addEventListener("click", e => {
+  const t=e.target.closest("[data-tab]"); if(t){ S.tab=t.dataset.tab; if(S.tab==="lips"&&!S.lips) S.lips="nude"; if(S.tab==="brows"&&!S.brows) S.brows="soft"; draw(); return; }
+  const a=e.target.closest("[data-lash]"); if(a){ S.lashes=a.dataset.lash||null; draw(); return; }
+  const b=e.target.closest("[data-lip]"); if(b){ S.lips=b.dataset.lip||null; draw(); return; }
+  const c=e.target.closest("[data-brow]"); if(c){ S.brows=c.dataset.brow||null; draw(); return; }
+});
+document.addEventListener("input", e => { if (e.target.id==="amt"){ S.lipAmt=+e.target.value; if (S.mode==="photo") render(S.img,S.lm,false); } });
+$("#file").addEventListener("change", e => { const f=e.target.files[0]; if(f) usePhoto(URL.createObjectURL(f)); e.target.value=""; });
+$("#camBtn").addEventListener("click", () => {
+  if (!navigator.mediaDevices?.getUserMedia) return status("This browser can't use the camera. Upload a photo instead.", 5000);
+  startCamera();
+});
+$("#resetBtn").addEventListener("click", () => { stopCamera(); S.mode=null; S.lm=null; cv.hidden=true; $("#overlay").hidden=true; $("#start").hidden=false; status(""); });
+const cmp = $("#compare"), setCmp = on => { S.compare=on; cmp.setAttribute("aria-pressed",on); if (S.mode==="photo") render(S.img,S.lm,false); };
+["pointerdown"].forEach(ev=>cmp.addEventListener(ev,e=>{e.preventDefault();setCmp(true)}));
+["pointerup","pointerleave","pointercancel"].forEach(ev=>cmp.addEventListener(ev,()=>setCmp(false)));
+cmp.addEventListener("keydown",e=>{ if(e.key===" "||e.key==="Enter"){ e.preventDefault(); setCmp(true);} });
+cmp.addEventListener("keyup",()=>setCmp(false));
+$("#saveBtn").addEventListener("click", () => cv.toBlob(async blob => {
+  const file = new File([blob], "perfect-beauty-try-on.jpg", {type:"image/jpeg"});
+  if (navigator.canShare?.({files:[file]})) { try { await navigator.share({files:[file], title:"My Perfect Beauty look"}); } catch {} return; }
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=file.name; a.click();
+}, "image/jpeg", .92));
+
+/* prices from the booking system */
+fetch("api/info.php").then(r=>r.json()).then(j=>{ if(!j.ok) return;
+  for (const c of j.categories) for (const s of c.items) S.prices[s.name] = {price:s.price/100, dur: s.duration>=60?`${Math.floor(s.duration/60)}h${s.duration%60?" "+s.duration%60+"m":""}`:`${s.duration}m`};
+  updateUI(); }).catch(()=>{});
+
+// start loading the face tracking in the background so it's ready when a photo arrives
+setTimeout(()=>getLandmarker().catch(()=>{}), 1500);
+updateUI();
+window.__tryon = {usePhoto, S, draw};   // used for testing
+</script>
+</body>
+</html>
