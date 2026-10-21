@@ -167,6 +167,8 @@ footer{border-top:1px solid var(--line);padding-block:28px 100px;color:var(--mut
 .scrim{position:fixed;inset:0;z-index:40;background:rgba(15,10,18,.45);display:flex;align-items:flex-end;justify-content:center}
 .sheet{background:var(--surface);width:100%;max-width:560px;max-height:92%;overflow-y:auto;border-radius:22px 22px 0 0;padding:20px max(20px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px));display:grid;gap:18px}
 @media (min-width:721px){.scrim{align-items:center}.sheet{border-radius:22px;max-height:88%}}
+.sheet{grid-template-columns:minmax(0,1fr)}
+#stepBody{min-width:0}
 .sheet-top{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .sheet-top h2{font-size:28px}
 .x{border:0;background:var(--bg);width:36px;height:36px;border-radius:50%;font-size:20px;line-height:1}
@@ -183,6 +185,7 @@ footer{border-top:1px solid var(--line);padding-block:28px 100px;color:var(--mut
 .day small{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .day[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .day[aria-pressed="true"] small{color:inherit}
+.day:disabled{opacity:.4;cursor:not-allowed}
 .slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .slot{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 0;font-family:var(--mono);font-size:14px}
 .slot:disabled{text-decoration:line-through;opacity:.4;cursor:not-allowed}
@@ -291,8 +294,8 @@ footer{border-top:1px solid var(--line);padding-block:28px 100px;color:var(--mut
       <div class="visit-grid">
         <div><h3>Address</h3><p>17 Marlborough Place<br>Banbury OX16 5DA</p></div>
         <div><h3>Opening hours</h3>
-          <div class="hours"><span>Mon–Fri</span><span>9:30 – 18:00</span><span>Saturday</span><span>10:00 – 16:00</span><span>Sunday</span><span>Closed</span></div>
-          <p class="note" style="margin-top:8px">Example hours, to confirm.</p>
+          <div class="hours" id="hoursList"><span>Mon–Fri</span><span>9:30 – 18:00</span><span>Saturday</span><span>10:00 – 16:00</span><span>Sunday</span><span>Closed</span></div>
+          <p class="note" id="hoursNote" style="margin-top:8px">Example hours, to confirm.</p>
         </div>
         <div><h3>Contact</h3><p>Phone and Instagram to add</p></div>
       </div>
@@ -327,7 +330,7 @@ footer{border-top:1px solid var(--line);padding-block:28px 100px;color:var(--mut
 </div>
 
 <script>
-const MENU = [
+let MENU = [
  {cat:"Lash extensions", items:[
   ["Classic lashes (1D) full set",50,100],["2D full set",55,90],["3D hybrid full set",60,100],["Russian volume full set",70,90],["Mega volume full set",80,120],
   ["M curl full set",65,115],["Wet look full set",60,105],["Eyeliner effect full set",55,90],["Pre-made lash extensions, any style",45,30],["Lash extensions removal",10,10]]},
@@ -350,6 +353,7 @@ const VOL = [
  {k:"RV",name:"Russian volume",n:5,set:70,inf:60,t:90,txt:"Hand-made fans of 4–6 ultra-fine lashes. Full, fluffy and still light."},
  {k:"MV",name:"Mega volume",n:9,set:80,inf:70,t:120,txt:"Dense fans of 8 or more. A bold, dark lash line for maximum drama."}
 ];
+const VOLN=[["Classic lashes (1D) full set","1D infill"],["2D full set","2D infill"],["3D hybrid full set","3D infill"],["Russian volume full set","Russian volume infill"],["Mega volume full set","Mega volume infill"]];
 const fmt = m => m>=60 ? `${Math.floor(m/60)}h${m%60?" "+(m%60)+"m":""}` : `${m}m`;
 const $ = s => document.querySelector(s);
 
@@ -378,7 +382,7 @@ function renderVol(){
   const v=VOL[vol];
   $("#volDetail").innerHTML=`<h3>${v.name}</h3><p>${v.txt}</p>
    <dl class="spec"><div><dt>Full set</dt><dd>£${v.set}</dd></div><div><dt>Infill</dt><dd>£${v.inf}</dd></div><div><dt>Time</dt><dd>${fmt(v.t)}</dd></div></dl>
-   <div><button class="btn" data-book-svc="${MENU[0].items[vol][0]}">Book ${v.name.toLowerCase()}</button></div>`;
+   <div><button class="btn" data-book-svc="${VOLN[vol][0]}">Book ${v.name.toLowerCase()}</button></div>`;
   fanSVG($("#volFan"),v.n,400,300);
 }
 $("#volTabs").addEventListener("click",e=>{const b=e.target.closest("[data-v]");if(b){vol=+b.dataset.v;renderVol()}});
@@ -426,7 +430,7 @@ const BA=[
  {b:"lips1-before",a:"lips1-after",w:367,h:720,t:"Lip blush",n:"Before (with numbing cream) and after"}
 ];
 const svcInfo=n=>ALL_SVC.find(x=>x.n===n);
-const ALL_SVC=MENU.flatMap(c=>c.items.map(([n,p,d])=>({n,p,d})));
+let ALL_SVC=MENU.flatMap(c=>c.items.map(([n,p,d])=>({n,p,d})));
 
 $("#baRow").innerHTML=BA.map((x,i)=>{const s=svcInfo("Lip blush");return `
  <figure class="ba">
@@ -476,71 +480,141 @@ document.addEventListener("keydown",e=>{if($("#lb").hidden)return;if(e.key==="Es
 (()=>{let x0=null;const st=$("#lbStage");st.addEventListener("touchstart",e=>{x0=e.touches[0].clientX},{passive:true});
  st.addEventListener("touchend",e=>{if(x0==null)return;const dx=e.changedTouches[0].clientX-x0;if(Math.abs(dx)>40)go(dx<0?1:-1);x0=null})})();
 
-/* booking */
-const ALL=MENU.flatMap(c=>c.items.map(([n,p,d])=>({n,p,d,c:c.cat})));
-const B={step:0,svc:null,day:null,time:null,name:"",phone:"",email:""};
-const days=(()=>{const out=[],d=new Date();d.setHours(0,0,0,0);while(out.length<14){d.setDate(d.getDate()+1);if(d.getDay()!==0)out.push(new Date(d))}return out})();
-function slotsFor(day,dur){
-  const open=day.getDay()===6?600:570, close=day.getDay()===6?960:1080, out=[];
-  for(let m=open;m+dur<=close;m+=30){
-    const taken=((day.getDate()*7+m*13)%5)===0;
-    out.push({m,label:`${String(Math.floor(m/60)).padStart(2,"0")}:${String(m%60).padStart(2,"0")}`,taken});
-  }
-  return out;
-}
+/* booking: live free times from the booking system */
+let ALL=[];
+function rebuildAll(){ALL=MENU.flatMap(c=>c.items.map(([n,p,d,id])=>({n,p,d,id,c:c.cat})));ALL_SVC=ALL}
+rebuildAll();
+let LIVE=false, RULES={max_days:60,deposit_percent:0};
+const B={step:0,svc:null,day:null,time:null,name:"",phone:"",email:"",notes:"",avail:null,availFor:null,loading:false,err:"",sending:false,ref:""};
 const DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DOWL=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const escH=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ymdL=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const dateOf=s=>{const [y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
+const niceDay=s=>{const d=dateOf(s);return `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`};
+
+async function loadInfo(){
+  try{
+    const r=await fetch("api/info.php",{cache:"no-store"});const j=await r.json();if(!j.ok)throw new Error();
+    MENU=j.categories.map(c=>({cat:c.cat,items:c.items.map(s=>[s.name,s.price/100,s.duration,s.id])}));
+    RULES=j.rules;rebuildAll();LIVE=true;
+    VOLN.forEach(([set,inf],i)=>{const a=ALL.find(x=>x.n===set),b=ALL.find(x=>x.n===inf);if(a){VOL[i].set=a.p;VOL[i].t=a.d}if(b)VOL[i].inf=b.p});
+    if(cat>=MENU.length)cat=0;
+    renderMenu();renderVol();renderWork();showHours(j.hours);
+  }catch(e){/* keep the built-in price list; the booking sheet explains if booking is unavailable */}
+}
+function showHours(H){
+  const order=[1,2,3,4,5,6,0],txt=h=>h&&h.open?`${h.open} – ${h.close}`:"Closed",groups=[];
+  for(const wd of order){const h=H.find(x=>x.weekday===wd),t=txt(h),g=groups[groups.length-1];
+    if(g&&g.t===t&&!(h&&h.break_start)&&!g.brk)g.to=wd;else groups.push({from:wd,to:wd,t,brk:h&&h.break_start?`${h.break_start}–${h.break_end}`:""})}
+  $("#hoursList").innerHTML=groups.map(g=>`<span>${g.from===g.to?DOWL[g.from]:DOW[g.from]+"–"+DOW[g.to]}</span><span>${g.t}${g.brk?`<br><small>Break ${g.brk}</small>`:""}</span>`).join("");
+  const n=$("#hoursNote");if(n)n.remove();
+}
+
+async function loadAvail(){
+  B.loading=true;B.avail=null;B.availFor=B.svc.id;renderSheet();
+  try{
+    const days=Math.min(28,RULES.max_days+1);
+    const r=await fetch(`api/availability.php?service=${B.svc.id}&from=${ymdL(new Date())}&days=${days}`,{cache:"no-store"});
+    const j=await r.json();if(!j.ok)throw new Error(j.error);
+    B.avail=j.days;
+    if(B.day==null||!B.avail.some(d=>d.date===B.day&&d.slots.length)){const f=B.avail.find(d=>d.slots.length);B.day=f?f.date:null}
+    if(B.time&&!(B.avail.find(d=>d.date===B.day)||{slots:[]}).slots.includes(B.time))B.time=null;
+  }catch(e){B.err="We couldn't load free times. Check your connection and try again."}
+  B.loading=false;renderSheet();
+}
+
+const detailsOk=()=>B.name.trim().length>=2&&B.phone.replace(/\D/g,"").length>=10&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(B.email.trim());
+
 function renderSheet(){
   [...$("#steps").children].forEach((s,i)=>s.classList.toggle("on",i<=B.step));
   const body=$("#stepBody"), foot=$("#foot"); let next=false, html="";
+  const err=B.err?`<p class="note" role="alert" style="color:var(--berry);margin:0 0 10px">${escH(B.err)}</p>`:"";
   if(B.step===0){
-    $("#sheetTitle").textContent="Choose a service";
-    html=MENU.map(c=>`<p class="eyebrow" style="margin:14px 0 8px">${c.cat}</p><div class="pick">${c.items.map(([n,p,d])=>`<button class="opt" aria-pressed="${B.svc&&B.svc.n===n}" data-s="${n}"><span>${n}</span><small>£${p} · ${fmt(d)}</small></button>`).join("")}</div>`).join("");
+    $("#sheetTitle").textContent="Choose a treatment";
+    html=MENU.map(c=>`<p class="eyebrow" style="margin:14px 0 8px">${escH(c.cat)}</p><div class="pick">${c.items.map(([n,p,d])=>`<button class="opt" aria-pressed="${!!(B.svc&&B.svc.n===n)}" data-s="${escH(n)}"><span>${escH(n)}</span><small>£${p} · ${fmt(d)}</small></button>`).join("")}</div>`).join("");
     next=!!B.svc;
   } else if(B.step===1){
     $("#sheetTitle").textContent="Pick a time";
-    html=`<div class="days">${days.map((d,i)=>`<button class="day" aria-pressed="${B.day===i}" data-d="${i}"><small>${DOW[d.getDay()]}</small><b>${d.getDate()}</b><small>${MON[d.getMonth()]}</small></button>`).join("")}</div>`;
-    if(B.day!=null){const s=slotsFor(days[B.day],B.svc.d);html+=`<div class="slots" style="margin-top:14px">${s.map(x=>`<button class="slot" ${x.taken?"disabled":""} aria-pressed="${B.time===x.label}" data-t="${x.label}">${x.label}</button>`).join("")}</div>`}
-    else html+=`<p class="note">Choose a day to see free times for ${B.svc.n.toLowerCase()} (${fmt(B.svc.d)}).</p>`;
-    next=B.day!=null&&!!B.time;
+    if(!LIVE){html=`<p class="note">Online booking isn't available right now. Please call or message the studio to book.</p>`}
+    else if(B.loading||!B.avail){html=err+`<p class="note">Finding free times for ${escH(B.svc.n)}…</p>`}
+    else if(!B.avail.some(d=>d.slots.length)){html=err+`<p class="note">There are no free times for ${escH(B.svc.n)} in the next few weeks. Please call or message the studio.</p>`}
+    else{
+      html=err+`<div class="days">${B.avail.map(d=>{const dt=dateOf(d.date),n=d.slots.length;
+        return `<button class="day" ${n?"":"disabled"} aria-pressed="${B.day===d.date}" data-d="${d.date}" aria-label="${niceDay(d.date)}${n?"":d.open?", fully booked":", closed"}"><small>${DOW[dt.getDay()]}</small><b>${dt.getDate()}</b><small>${n?MON[dt.getMonth()]:d.open?"Full":"Closed"}</small></button>`}).join("")}</div>`;
+      const day=B.avail.find(d=>d.date===B.day);
+      if(day)html+=`<p class="note" style="margin:14px 0 8px">${niceDay(day.date)} · ${escH(B.svc.n)} (${fmt(B.svc.d)})</p><div class="slots">${day.slots.map(t=>`<button class="slot" aria-pressed="${B.time===t}" data-t="${t}">${t}</button>`).join("")}</div>`;
+    }
+    next=!!(B.day&&B.time);
   } else if(B.step===2){
     $("#sheetTitle").textContent="Your details";
     html=`<div style="display:grid;gap:12px">
-      <div class="field"><label for="bn">Full name</label><input id="bn" autocomplete="name" value="${B.name}"></div>
-      <div class="field"><label for="bp">Mobile number</label><input id="bp" type="tel" autocomplete="tel" value="${B.phone}"></div>
-      <div class="field"><label for="be">Email (for your confirmation)</label><input id="be" type="email" autocomplete="email" value="${B.email}"></div>
+      <div class="field"><label for="bn">Full name</label><input id="bn" autocomplete="name" value="${escH(B.name)}"></div>
+      <div class="field"><label for="bp">Mobile number</label><input id="bp" type="tel" autocomplete="tel" value="${escH(B.phone)}"></div>
+      <div class="field"><label for="be">Email (for your confirmation)</label><input id="be" type="email" autocomplete="email" value="${escH(B.email)}"></div>
+      <div class="field"><label for="bnotes">Anything we should know? (optional)</label><textarea id="bnotes" rows="2" style="font:inherit;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:12px">${escH(B.notes)}</textarea></div>
+      <div aria-hidden="true" style="position:absolute;left:-9999px"><label for="bco">Company</label><input id="bco" tabindex="-1" autocomplete="off"></div>
     </div>`;
-    next=B.name.trim()&&B.phone.trim().length>=10;
+    next=detailsOk();
   } else if(B.step===3){
-    $("#sheetTitle").textContent="Check and confirm";
-    const d=days[B.day];
-    html=`<div class="summary">
-      <div class="row"><span>${B.svc.n}</span><span>£${B.svc.p}</span></div>
-      <div class="row"><span>${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}, ${B.time}</span><span>${fmt(B.svc.d)}</span></div>
-      <div class="row"><span>${B.name}</span><span>${B.phone}</span></div></div>
-      <p class="note">Pay in the studio on the day. You'll get a text once your request is accepted.</p>`;
-    next=true;
+    $("#sheetTitle").textContent="Check and send";
+    html=err+`<div class="summary">
+      <div class="row"><span>${escH(B.svc.n)}</span><span>£${B.svc.p}</span></div>
+      <div class="row"><span>${niceDay(B.day)}, ${B.time}</span><span>${fmt(B.svc.d)}</span></div>
+      <div class="row"><span>${escH(B.name)}</span><span>${escH(B.phone)}</span></div>
+      <div class="row"><span>${escH(B.email)}</span><span></span></div></div>
+      <p class="note">This is a booking request. The studio will confirm it by email, usually the same day. ${RULES.deposit_percent?"":"You pay in the studio on the day."}</p>`;
+    next=!B.sending;
   } else {
     $("#sheetTitle").textContent="Request sent";
-    body.innerHTML=`<div class="done"><div class="tick">✓</div><h3 style="font-size:26px">Thanks, ${B.name.split(" ")[0]}</h3><p class="note" style="margin:0">Your request for ${B.svc.n.toLowerCase()} is with the studio. You'll get a text when it's accepted.</p></div><p class="demo">Demo only: no booking was actually sent.</p>`;
+    body.innerHTML=`<div class="done"><div class="tick">✓</div><h3 style="font-size:26px">Thanks, ${escH(B.name.trim().split(" ")[0])}</h3>
+      <p class="note" style="margin:0">Your request for ${escH(B.svc.n)} on ${niceDay(B.day)} at ${B.time} is with the studio. We've emailed you a copy, and you'll get another email as soon as it's confirmed.</p>
+      <p class="note" style="margin:0">Reference <b style="font-family:var(--mono)">${escH(B.ref)}</b></p></div>`;
     foot.innerHTML=`<button class="btn" id="fin">Done</button>`; $("#fin").onclick=closeSheet; return;
   }
   body.innerHTML=html;
-  foot.innerHTML=`${B.step>0?`<button class="btn ghost" id="back">Back</button>`:""}<button class="btn" id="next" ${next?"":"disabled"}>${B.step===3?"Send booking request":"Continue"}</button>`;
-  $("#next").onclick=()=>{B.step++;renderSheet();$(".sheet").scrollTop=0};
-  if($("#back")) $("#back").onclick=()=>{B.step--;renderSheet()};
+  foot.innerHTML=`${B.step>0?`<button class="btn ghost" id="back">Back</button>`:""}<button class="btn" id="next" ${next?"":"disabled"}>${B.step===3?(B.sending?"Sending…":"Send booking request"):"Continue"}</button>`;
+  $("#next").onclick=()=>{
+    if(B.step===3)return sendBooking();
+    B.err="";B.step++;
+    if(B.step===1&&(B.availFor!==B.svc.id||!B.avail))return loadAvail();
+    renderSheet();$(".sheet").scrollTop=0;
+  };
+  if($("#back")) $("#back").onclick=()=>{B.err="";B.step--;renderSheet()};
+  if(B.step===1){const sel=$(".day[aria-pressed='true']");sel&&sel.scrollIntoView({inline:"center",block:"nearest"})}
 }
+
+async function sendBooking(){
+  B.sending=true;B.err="";renderSheet();
+  try{
+    const r=await fetch("api/book.php",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({service:B.svc.id,date:B.day,time:B.time,name:B.name,phone:B.phone,email:B.email,notes:B.notes,company:($("#bco")||{}).value||""})});
+    const j=await r.json().catch(()=>({ok:false,error:"Something went wrong. Please try again."}));
+    B.sending=false;
+    if(j.ok){B.ref=j.ref;B.step=4;B.avail=null;renderSheet();return}
+    B.err=j.error||"Something went wrong. Please try again.";
+    if(j.code==="taken"){B.step=1;B.time=null;return loadAvail()}
+  }catch(e){B.sending=false;B.err="We couldn't send your request. Check your connection and try again."}
+  renderSheet();
+}
+
 $("#stepBody").addEventListener("click",e=>{
-  const s=e.target.closest("[data-s]"),d=e.target.closest("[data-d]"),t=e.target.closest(".slot[data-t]");
-  if(s){B.svc=ALL.find(x=>x.n===s.dataset.s);B.time=null;renderSheet()}
-  if(d){B.day=+d.dataset.d;B.time=null;renderSheet()}
+  const s=e.target.closest("[data-s]"),d=e.target.closest(".day[data-d]"),t=e.target.closest(".slot[data-t]");
+  if(s){const v=ALL.find(x=>x.n===s.dataset.s);if(!B.svc||B.svc.n!==v.n){B.svc=v;B.time=null;B.day=null}renderSheet()}
+  if(d){B.day=d.dataset.d;B.time=null;renderSheet()}
   if(t){B.time=t.dataset.t;renderSheet()}
 });
 $("#stepBody").addEventListener("input",e=>{
-  if(e.target.id==="bn")B.name=e.target.value; if(e.target.id==="bp")B.phone=e.target.value; if(e.target.id==="be")B.email=e.target.value;
-  $("#next").disabled=!(B.name.trim()&&B.phone.trim().length>=10);
+  const id=e.target.id;if(id==="bn")B.name=e.target.value;if(id==="bp")B.phone=e.target.value;if(id==="be")B.email=e.target.value;if(id==="bnotes")B.notes=e.target.value;
+  if(B.step===2)$("#next").disabled=!detailsOk();
 });
-function openSheet(svc){Object.assign(B,{step:svc?1:0,svc:svc?ALL.find(x=>x.n===svc):B.svc,day:null,time:null});$("#scrim").hidden=false;document.body.style.overflow="hidden";renderSheet()}
-function closeSheet(){$("#scrim").hidden=true;document.body.style.overflow="";if(B.step===4)Object.assign(B,{step:0,svc:null})}
+function openSheet(svc){
+  const found=svc?ALL.find(x=>x.n===svc):null;
+  Object.assign(B,{step:found?1:0,svc:found||B.svc,time:null,err:""});
+  if(B.step===4)Object.assign(B,{step:0});
+  $("#scrim").hidden=false;document.body.style.overflow="hidden";
+  if(B.step===1&&(B.availFor!==B.svc.id||!B.avail))loadAvail();else renderSheet();
+}
+function closeSheet(){$("#scrim").hidden=true;document.body.style.overflow="";if(B.step===4)Object.assign(B,{step:0,svc:null,day:null,time:null,notes:""})}
 document.addEventListener("click",e=>{
   const b=e.target.closest("[data-book]"),s=e.target.closest("[data-book-svc]");
   if(s){openSheet(s.dataset.bookSvc)} else if(b){openSheet(null)}
@@ -548,6 +622,7 @@ document.addEventListener("click",e=>{
 $("#close").onclick=closeSheet;
 $("#scrim").addEventListener("click",e=>{if(e.target.id==="scrim")closeSheet()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#scrim").hidden)closeSheet()});
+loadInfo().then(()=>{if(location.hash==="#book")openSheet(null)});
 </script>
 
 </body>

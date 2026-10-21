@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#8A2F55">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bookings">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="/admin/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/admin/apple-touch-icon.png">
+<link rel="icon" href="/admin/icon-192.png">
+<title>Bookings · Perfect Beauty</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,500&family=Figtree:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap">
+<style>
+/* Phone-first booking manager: header, one scrolling view per tab, tab bar pinned to the bottom */
+:root{
+  --bg:#F7F5F8; --surface:#FFFFFF; --ink:#1F1A24; --muted:#6B6372; --line:#E4DEE6;
+  --berry:#8A2F55; --berry-ink:#FFFFFF; --berry-soft:#F3E4EB;
+  --ok:#2F6B4F; --ok-soft:#E3F1EA; --warn:#8A5A12; --warn-soft:#FBF0DC; --bad:#A3323A; --bad-soft:#FBE6E7;
+  --display:"Bodoni Moda",Didot,Georgia,serif; --body:"Figtree",system-ui,-apple-system,sans-serif; --mono:"DM Mono",ui-monospace,Menlo,monospace;
+  --tabh:62px;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#141117; --surface:#1D1922; --ink:#F1ECF2; --muted:#A79FAD; --line:#2F2935;
+  --berry:#E07FA6; --berry-ink:#1A0F15; --berry-soft:#33202A;
+  --ok:#7FC8A2; --ok-soft:#1C2C24; --warn:#E5B567; --warn-soft:#2E2617; --bad:#F08A92; --bad-soft:#331C1F; color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 var(--body);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--berry);outline-offset:2px}
+h1,h2,h3{margin:0;font-weight:500;text-wrap:balance}
+p{margin:0}
+.wrap{max-width:640px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* header */
+.top{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:12px}
+.top h1{font-family:var(--display);font-size:24px}
+.top .sub{font-family:var(--mono);font-size:12px;color:var(--muted)}
+main{padding-block:16px calc(var(--tabh) + 28px + env(safe-area-inset-bottom,0px))}
+.view{display:grid;gap:14px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+
+/* tabs */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+.tabs .wrap{display:grid;grid-template-columns:repeat(4,1fr);height:var(--tabh)}
+.tabs button{border:0;background:none;display:grid;place-items:center;gap:2px;font-size:12px;font-weight:500;color:var(--muted);position:relative;padding:8px 0}
+.tabs button svg{width:24px;height:24px}
+.tabs button[aria-current="page"]{color:var(--berry)}
+.dot{position:absolute;top:6px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--berry);color:var(--berry-ink);font:600 11px/18px var(--body)}
+
+/* generic */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:grid;gap:10px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:999px;padding:12px 18px;font-weight:600;background:var(--berry);color:var(--berry-ink);text-decoration:none;min-height:46px}
+.btn.ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.btn.ok{background:var(--ok);color:var(--surface)}
+.btn.small{min-height:36px;padding:7px 14px;font-size:14px}
+.btn:disabled{opacity:.45}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.row>.btn{flex:1}
+.muted{color:var(--muted);font-size:14px}
+.field{display:grid;gap:6px;font-size:14px;font-weight:600}
+.field input,.field select,.field textarea{font-weight:400;font-size:16px;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:11px 12px;width:100%;min-width:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chip{display:inline-block;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px}
+.chip.pending{background:var(--warn-soft);color:var(--warn)} .chip.accepted{background:var(--ok-soft);color:var(--ok)}
+.chip.declined,.chip.cancelled{background:var(--bad-soft);color:var(--bad)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tabh) + 16px + env(safe-area-inset-bottom,0px));z-index:30;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.2);max-width:calc(100% - 32px)}
+.empty{text-align:center;padding:36px 16px;color:var(--muted)}
+.empty b{display:block;font-family:var(--display);font-size:24px;font-weight:500;color:var(--ink);margin-bottom:4px}
+.banner{background:var(--berry-soft);border-radius:16px;padding:14px 16px;display:grid;gap:8px}
+.banner b{color:var(--berry)}
+
+/* request card */
+.req{position:relative}
+.req.flash{animation:flash 1.6s ease}
+@keyframes flash{0%,60%{box-shadow:0 0 0 3px var(--berry)}100%{box-shadow:0 0 0 0 transparent}}
+.req .when{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.req .when b{font-family:var(--display);font-size:22px;font-weight:500}
+.req .when span{font-family:var(--mono);font-size:14px;color:var(--muted)}
+.req h3{font-size:18px;font-weight:600;font-family:var(--body)}
+.req .svc{display:flex;justify-content:space-between;gap:10px}
+.req .svc span:last-child{font-family:var(--mono)}
+.contact{display:flex;gap:8px;flex-wrap:wrap}
+.contact a{font-size:14px;color:var(--ink);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-variant-numeric:tabular-nums}
+.note{background:var(--bg);border-radius:10px;padding:10px 12px;font-size:14px}
+.reasons{display:flex;gap:6px;flex-wrap:wrap}
+.reasons button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:6px 12px;font-size:13px}
+.age{font-size:12px;color:var(--muted)}
+
+/* diary */
+.strip{display:flex;gap:8px;overflow-x:auto;padding:2px 0 6px;scrollbar-width:none}
+.strip::-webkit-scrollbar{display:none}
+.day{flex:none;width:58px;border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:8px 0 6px;display:grid;justify-items:center;gap:1px}
+.day small{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.day b{font-family:var(--display);font-size:22px;font-weight:500;line-height:1.1}
+.day i{font-style:normal;font-size:11px;height:14px;color:var(--muted)}
+.day.closed{opacity:.5}
+.day[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.day[aria-pressed="true"] small,.day[aria-pressed="true"] i{color:inherit}
+.slot{display:grid;grid-template-columns:62px 1fr;gap:12px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.slot .t{font-family:var(--mono);font-size:15px;line-height:1.3}
+.slot .t small{display:block;color:var(--muted);font-size:12px}
+.slot .who{display:grid;gap:4px;min-width:0}
+.slot .who b{font-weight:600}
+.slot.cancelled{opacity:.55}
+.slot.cancelled .who b{text-decoration:line-through}
+.slot details{grid-column:1/-1}
+.slot summary{font-size:14px;color:var(--berry);font-weight:600;list-style:none;cursor:pointer}
+.slot summary::-webkit-details-marker{display:none}
+.slot details[open] summary{margin-bottom:10px}
+.dayinfo{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.dayinfo h2{font-family:var(--display);font-size:26px}
+
+/* hours */
+.hrow{display:grid;grid-template-columns:44px 1fr;gap:10px;align-items:start;padding-block:12px;border-top:1px solid var(--line)}
+.hrow:first-of-type{border-top:0}
+.hrow .dname{font-weight:600;padding-top:8px}
+.hrow .times{display:grid;gap:8px}
+.hrow .pair{display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center}
+.hrow input[type=time]{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px;width:100%;min-width:0;font-size:16px}
+.switch{display:inline-flex;align-items:center;gap:8px;font-size:14px}
+.switch input{width:20px;height:20px;accent-color:var(--berry)}
+.linkbtn{border:0;background:none;color:var(--berry);font-size:14px;font-weight:600;padding:4px 0;justify-self:start}
+.off{display:flex;justify-content:space-between;align-items:center;gap:10px;padding-block:10px;border-top:1px solid var(--line)}
+.off:first-child{border-top:0}
+
+/* services */
+details.cat{border-top:1px solid var(--line);padding-block:10px}
+details.cat summary{font-weight:600;cursor:pointer}
+.svcrow{display:grid;grid-template-columns:1fr 74px 74px 28px;gap:6px;align-items:center;margin-top:8px}
+.svcrow input{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px;font-size:15px;min-width:0;width:100%}
+.svcrow input[type=checkbox]{width:20px;height:20px;accent-color:var(--berry)}
+.svchead{display:grid;grid-template-columns:1fr 74px 74px 28px;gap:6px;font-size:12px;color:var(--muted);margin-top:8px}
+
+/* sheet */
+.scrim{position:fixed;inset:0;z-index:20;background:rgba(15,10,18,.45);display:flex;align-items:flex-end;justify-content:center}
+.sheet{grid-template-columns:minmax(0,1fr);background:var(--surface);width:100%;max-width:640px;max-height:92%;overflow-y:auto;border-radius:20px 20px 0 0;padding:18px max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:grid;gap:12px}
+.sheet header{display:flex;justify-content:space-between;align-items:center}
+.sheet h2{font-family:var(--display);font-size:26px}
+.x{border:0;background:var(--bg);width:36px;height:36px;border-radius:50%;font-size:20px}
+.times-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.times-grid button{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 0;font-family:var(--mono);font-size:14px}
+.times-grid button[aria-pressed="true"]{background:var(--berry);color:var(--berry-ink);border-color:var(--berry)}
+
+/* login */
+.login{min-height:100vh;display:grid;place-items:center;padding:24px 16px}
+.login form{width:100%;max-width:380px;display:grid;gap:14px}
+.login h1{font-family:var(--display);font-size:34px}
+.login h1 i{color:var(--berry)}
+.err{background:var(--bad-soft);color:var(--bad);padding:10px 12px;border-radius:10px;font-size:14px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<section class="login" id="login" hidden>
+  <form id="loginForm">
+    <h1>Perfect <i>Beauty</i></h1>
+    <p class="muted">Sign in to manage bookings.</p>
+    <div class="err" id="loginErr" hidden></div>
+    <label class="field" for="pw">Password<input id="pw" type="password" autocomplete="current-password" required></label>
+    <button class="btn" type="submit">Sign in</button>
+  </form>
+</section>
+
+<div id="app" hidden>
+  <header class="top"><div class="wrap"><div><h1 id="title">Requests</h1><div class="sub" id="subtitle"></div></div>
+    <button class="btn small" id="addBtn" hidden>+ Add</button></div></header>
+  <main><div class="wrap view" id="view"></div></main>
+  <nav class="tabs" aria-label="Sections"><div class="wrap">
+    <button data-tab="requests" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>Requests<span class="dot" id="pendingDot" hidden></span></button>
+    <button data-tab="diary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Diary</button>
+    <button data-tab="hours"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>Hours</button>
+    <button data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M4.2 7.5l2.2 1.3M17.6 15.2l2.2 1.3M4.2 16.5l2.2-1.3M17.6 8.8l2.2-1.3"/></svg>Settings</button>
+  </div></nav>
+</div>
+
+<div class="scrim" id="scrim" hidden><div class="sheet" role="dialog" aria-modal="true" id="sheet"></div></div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], DOWL=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const money=p=>"£"+(p%100?(p/100).toFixed(2):p/100);
+const dur=m=>m>=60?`${Math.floor(m/60)}h${m%60?" "+m%60+"m":""}`:`${m}m`;
+const ymd=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const parse=s=>{const [d,t]=s.split(" ");const [y,m,dd]=d.split("-").map(Number);const [h,mi]=(t||"00:00").split(":").map(Number);return new Date(y,m-1,dd,h,mi)};
+const dayLabel=s=>{const d=parse(s),t=new Date();t.setHours(0,0,0,0);const diff=Math.round((new Date(d).setHours(0,0,0,0)-t)/864e5);
+  return diff===0?"Today":diff===1?"Tomorrow":`${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`};
+const hm=s=>s.slice(11,16);
+const ago=s=>{const m=Math.round((Date.now()-new Date(s.replace(" ","T")))/6e4);return m<1?"just now":m<60?m+" min ago":m<1440?Math.round(m/60)+" h ago":Math.round(m/1440)+" days ago"};
+
+async function api(a,data,params=""){
+  const opt=data?{method:"POST",headers:{"Content-Type":"application/json","X-PB":"1"},body:JSON.stringify(data)}:{};
+  const r=await fetch(`/admin/api.php?a=${a}${params}`,opt);let j={};try{j=await r.json()}catch{j={ok:false,error:"The server didn't answer properly. Try again."}}
+  if(j.code==="auth"){showLogin();throw new Error("auth")}
+  if(!j.ok)throw Object.assign(new Error(j.error||"Something went wrong."),{data:j});
+  return j;
+}
+let toastT;function toast(m){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2800)}
+
+/* ---------- state ---------- */
+const S={tab:"requests",me:null,schedule:null,diaryDate:ymd(new Date()),focus:null};
+function setPending(n){const d=$("#pendingDot");d.hidden=!n;d.textContent=n;try{n?navigator.setAppBadge?.(n):navigator.clearAppBadge?.()}catch{}}
+
+/* ---------- login ---------- */
+function showLogin(){$("#app").hidden=true;$("#login").hidden=false;$("#pw").focus()}
+$("#loginForm").addEventListener("submit",async e=>{e.preventDefault();$("#loginErr").hidden=true;
+  try{await api("login",{password:$("#pw").value});$("#pw").value="";start()}catch(err){if(err.message!=="auth"){$("#loginErr").textContent=err.message;$("#loginErr").hidden=false}}});
+
+async function start(){
+  try{S.me=await api("me")}catch(e){if(e.message!=="auth"){document.body.innerHTML=`<p style="padding:24px">${esc(e.message)}</p>`}return}
+  $("#login").hidden=true;$("#app").hidden=false;setPending(S.me.pending);
+  const m=location.hash.match(/^#b(\d+)$/);if(m)S.focus=+m[1];
+  go(S.tab);
+}
+
+/* ---------- tabs ---------- */
+document.querySelectorAll(".tabs button").forEach(b=>b.addEventListener("click",()=>go(b.dataset.tab)));
+function go(tab){S.tab=tab;document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===tab?"page":"false"));
+  $("#addBtn").hidden=tab!=="diary";$("#subtitle").textContent="";window.scrollTo(0,0);
+  ({requests:renderRequests,diary:renderDiary,hours:renderHours,settings:renderSettings})[tab]()}
+
+/* ---------- alerts banner ---------- */
+const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+const standalone=matchMedia("(display-mode: standalone)").matches||navigator.standalone;
+function alertsBanner(){
+  if(!("serviceWorker" in navigator))return"";
+  if(isIOS&&!standalone)return`<div class="banner"><b>Get instant alerts on this iPhone</b><p class="muted">Tap the Share button in Safari, then <b>Add to Home Screen</b>. Open Bookings from your home screen and turn on notifications.</p></div>`;
+  if(!("PushManager" in window)||!("Notification" in window))return"";
+  if(Notification.permission==="granted"&&S.me&&S.me.devices>0)return"";
+  return`<div class="banner"><b>Turn on booking alerts</b><p class="muted">Get a notification on this phone the moment someone books, even when it's locked.</p><button class="btn small" data-act="push">Turn on notifications</button></div>`;
+}
+
+/* ---------- requests ---------- */
+async function renderRequests(){
+  $("#title").textContent="Requests";const v=$("#view");
+  const {bookings,pending}=await api("bookings",null,"&scope=pending");setPending(pending);
+  $("#subtitle").textContent=pending?`${pending} waiting for you`:"All caught up";
+  v.innerHTML=alertsBanner()+(bookings.length?bookings.map(reqCard).join(""):`<div class="empty"><b>No new requests</b>New online bookings will appear here for you to accept or decline.</div>`);
+  if(S.focus){const el=$("#b"+S.focus);if(el){el.scrollIntoView({block:"center"});el.classList.add("flash")}S.focus=null;history.replaceState(null,"","/admin/")}
+}
+function reqCard(b){
+  const tel=b.phone.replace(/[^\d+]/g,"");
+  return`<article class="card req" id="b${b.id}">
+   <div class="when"><b>${dayLabel(b.start)}</b><span>${hm(b.start)}–${hm(b.end)}</span></div>
+   <h3>${esc(b.name)}</h3>
+   <div class="svc"><span>${esc(b.service)} · ${dur(b.duration)}</span><span>${money(b.price)}</span></div>
+   <div class="contact"><a href="tel:${esc(tel)}">${esc(b.phone)}</a>${b.email?`<a href="mailto:${esc(b.email)}">${esc(b.email)}</a>`:""}</div>
+   ${b.notes?`<div class="note">${esc(b.notes)}</div>`:""}
+   <div class="age">Requested ${ago(b.created)} · ref ${esc(b.ref)}</div>
+   <div class="row" data-id="${b.id}"><button class="btn ok" data-act="accept">Accept</button><button class="btn ghost" data-act="decline">Decline</button></div>
+   <div class="decline" hidden data-id="${b.id}">
+     <p class="muted">Tell the client why (optional). They'll get it by email.</p>
+     <div class="reasons"><button data-r="That time is no longer available. Please choose another time.">Time not available</button><button data-r="I'm not available on that day. Please choose another day.">Not available that day</button><button data-r="Please call the studio so we can find the right treatment for you.">Please call me</button></div>
+     <label class="field">Message<textarea rows="2" class="reason"></textarea></label>
+     <div class="row"><button class="btn" data-act="decline-send">Decline and email client</button><button class="btn ghost" data-act="decline-cancel">Back</button></div>
+   </div></article>`;
+}
+
+/* ---------- diary ---------- */
+async function renderDiary(){
+  $("#title").textContent="Diary";const v=$("#view");
+  if(!S.schedule)S.schedule=await api("schedule");
+  const start=new Date();start.setHours(0,0,0,0);start.setDate(start.getDate()-1);
+  const {days}=await api("counts",null,"&from="+ymd(start));const cnt=Object.fromEntries(days.map(d=>[d.d,d]));
+  const openDays=new Set(S.schedule.hours.filter(h=>h.open).map(h=>h.weekday));
+  let strip="";for(let i=0;i<31;i++){const d=new Date(start);d.setDate(start.getDate()+i);const k=ymd(d),c=cnt[k];
+    const n=c?(+c.a)+(+c.p):0;
+    strip+=`<button class="day${openDays.has(d.getDay())?"":" closed"}" aria-pressed="${k===S.diaryDate}" data-day="${k}"><small>${DOW[d.getDay()]}</small><b>${d.getDate()}</b><i>${n?n+(n>1?" appts":" appt"):""}</i></button>`}
+  const {bookings}=await api("bookings",null,"&scope=day&date="+S.diaryDate);
+  const d=parse(S.diaryDate),h=S.schedule.hours.find(x=>x.weekday===d.getDay());
+  const live=bookings.filter(b=>b.status!=="cancelled"),mins=live.reduce((a,b)=>a+b.duration,0),takings=live.reduce((a,b)=>a+b.price,0);
+  v.innerHTML=`<div class="strip" id="strip">${strip}</div>
+   <div class="dayinfo"><h2>${dayLabel(S.diaryDate+" 00:00")}</h2><span class="muted">${h&&h.open?`Open ${h.open}–${h.close}`:"Closed"}</span></div>
+   ${live.length?`<p class="muted">${live.length} appointment${live.length>1?"s":""} · ${dur(mins)} booked · ${money(takings)}</p>`:""}
+   ${bookings.length?bookings.map(slotCard).join(""):`<div class="empty"><b>Nothing booked</b>Tap + Add to put in a phone or walk-in booking.</div>`}`;
+  const sel=$(`.day[aria-pressed="true"]`);sel&&sel.scrollIntoView({inline:"center",block:"nearest"});
+}
+function slotCard(b){
+  const tel=b.phone.replace(/[^\d+]/g,"");
+  const acts=b.status==="pending"?`<div class="row" data-id="${b.id}"><button class="btn ok small" data-act="accept">Accept</button><button class="btn ghost small" data-act="goto-req">Decline…</button></div>`
+    :b.status==="accepted"?`<div class="row" data-id="${b.id}"><button class="btn ghost small" data-act="cancel-ask">Cancel appointment</button></div>
+      <div class="decline" hidden data-id="${b.id}"><label class="field">Message to the client (optional)<textarea rows="2" class="reason"></textarea></label>
+      <div class="row"><button class="btn" data-act="cancel-send">Cancel${b.email?" and email client":""}</button><button class="btn ghost" data-act="decline-cancel">Keep it</button></div></div>`:"";
+  return`<div class="slot ${b.status}"><div class="t">${hm(b.start)}<small>${hm(b.end)}</small></div>
+   <div class="who"><b>${esc(b.name)}</b><span class="muted">${esc(b.service)} · ${money(b.price)}</span>
+   <span><span class="chip ${b.status}">${{pending:"Waiting",accepted:"Confirmed",cancelled:"Cancelled",declined:"Declined"}[b.status]}</span>${b.source==="admin"?' <span class="muted">· added by you</span>':""}</span></div>
+   <details><summary>Details</summary><div style="display:grid;gap:10px">
+    <div class="contact">${b.phone?`<a href="tel:${esc(tel)}">${esc(b.phone)}</a>`:""}${b.email?`<a href="mailto:${esc(b.email)}">${esc(b.email)}</a>`:""}</div>
+    ${b.notes?`<div class="note">${esc(b.notes)}</div>`:""}${b.reason?`<div class="note">${esc(b.reason)}</div>`:""}
+    <span class="muted">Ref ${esc(b.ref)}</span>${acts}</div></details></div>`;
+}
+
+/* ---------- add booking sheet ---------- */
+$("#addBtn").addEventListener("click",()=>openAdd());
+function openAdd(){
+  const sv=S.schedule.services.filter(s=>s.active);const cats=[...new Set(sv.map(s=>s.category))];
+  sheet(`<header><h2>Add a booking</h2><button class="x" data-act="close" aria-label="Close">×</button></header>
+   <label class="field" for="nsvc">Treatment<select id="nsvc">${cats.map(c=>`<optgroup label="${esc(c)}">${sv.filter(s=>s.category===c).map(s=>`<option value="${s.id}">${esc(s.name)} · ${money(s.price)} · ${dur(s.duration)}</option>`).join("")}</optgroup>`).join("")}</select></label>
+   <div class="grid2"><label class="field" for="ndate">Day<input id="ndate" type="date" value="${S.diaryDate}"></label><label class="field" for="ntime">Time<input id="ntime" type="time" step="300" value="10:00"></label></div>
+   <label class="field" for="nname">Client name<input id="nname" autocomplete="off"></label>
+   <div class="grid2"><label class="field" for="nphone">Phone<input id="nphone" type="tel"></label><label class="field" for="nemail">Email<input id="nemail" type="email"></label></div>
+   <label class="field" for="nnotes">Notes<textarea id="nnotes" rows="2"></textarea></label>
+   <label class="switch"><input type="checkbox" id="nsend"> Email the client a confirmation</label>
+   <div class="err" id="nerr" hidden></div>
+   <button class="btn" data-act="add-save">Add booking</button>`);
+}
+async function saveAdd(force){
+  const d={service:+$("#nsvc").value,date:$("#ndate").value,time:$("#ntime").value,name:$("#nname").value,phone:$("#nphone").value,email:$("#nemail").value,notes:$("#nnotes").value,send_email:$("#nsend").checked,force};
+  try{await api("create",d);closeSheet();S.diaryDate=d.date;toast("Booking added");renderDiary()}
+  catch(e){const el=$("#nerr");el.hidden=false;
+    if(e.data&&e.data.code==="clash"){el.innerHTML=`That overlaps another booking or time off. <button class="linkbtn" data-act="add-force">Add it anyway</button>`}else el.textContent=e.message}
+}
+
+/* ---------- hours ---------- */
+async function renderHours(){
+  $("#title").textContent="Opening hours";const v=$("#view");
+  S.schedule=await api("schedule");const H=S.schedule.hours;
+  const order=[1,2,3,4,5,6,0];
+  v.innerHTML=`<p class="muted">Customers can only book inside these hours. Changes show on the website and in free times straight away.</p>
+  <div class="card" id="hoursCard">${order.map(wd=>{const h=H.find(x=>x.weekday===wd),open=!!h.open,br=!!h.break_start;
+   return`<div class="hrow" data-wd="${wd}"><div class="dname">${DOW[wd]}</div><div class="times">
+    <label class="switch"><input type="checkbox" class="isopen" ${open?"checked":""}> ${open?"Open":"Closed"}</label>
+    <div class="pair" ${open?"":"hidden"}><input type="time" class="o" value="${h.open||"09:30"}" aria-label="${DOWL[wd]} opens"><span class="muted">to</span><input type="time" class="c" value="${h.close||"18:00"}" aria-label="${DOWL[wd]} closes"></div>
+    <div class="pair brk" ${open&&br?"":"hidden"}><input type="time" class="bs" value="${h.break_start||"13:00"}" aria-label="${DOWL[wd]} break starts"><span class="muted">break</span><input type="time" class="be" value="${h.break_end||"13:30"}" aria-label="${DOWL[wd]} break ends"></div>
+    <button class="linkbtn addbrk" ${open?"":"hidden"}>${br?"Remove break":"Add a break"}</button></div></div>`}).join("")}
+   <button class="btn" data-act="hours-save">Save opening hours</button></div>
+  <div class="eyebrow" style="margin-top:8px">Time off</div>
+  <div class="card"><p class="muted">Holidays, training days or appointments. Nobody can book during these times.</p><div id="offList">${S.schedule.time_off.map(offRow).join("")||'<p class="muted">No time off planned.</p>'}</div>
+   <div class="grid2"><label class="field" for="osd">From<input id="osd" type="date" value="${ymd(new Date())}"></label><label class="field" for="oed">To<input id="oed" type="date" value="${ymd(new Date())}"></label></div>
+   <label class="switch"><input type="checkbox" id="opart"> Only part of the day</label>
+   <div class="grid2" id="otimes" hidden><label class="field" for="ost">From time<input id="ost" type="time" value="12:00"></label><label class="field" for="oet">To time<input id="oet" type="time" value="14:00"></label></div>
+   <label class="field" for="onote">Note (only you see this)<input id="onote" placeholder="e.g. Holiday"></label>
+   <button class="btn ghost" data-act="off-add">Add time off</button></div>`;
+}
+function offRow(o){const s=o.start_at,e=o.end_at,full=s.endsWith("00:00")&&e.endsWith("24:00");
+  const same=s.slice(0,10)===e.slice(0,10);
+  const txt=full?(same?dayLabel(s):`${dayLabel(s)} – ${dayLabel(e.slice(0,10)+" 00:00")}`):`${dayLabel(s)} ${hm(s)} – ${same?"":dayLabel(e.slice(0,10)+" 00:00")+" "}${e.slice(11,16)}`;
+  return`<div class="off"><div><b>${txt}</b>${o.note?`<div class="muted">${esc(o.note)}</div>`:""}</div><button class="btn ghost small" data-act="off-del" data-id="${o.id}">Remove</button></div>`}
+
+/* ---------- settings ---------- */
+async function renderSettings(){
+  $("#title").textContent="Settings";const v=$("#view");
+  S.schedule=await api("schedule");S.me=await api("me");const st=S.schedule.settings;
+  const cats=[...new Set(S.schedule.services.map(s=>s.category))];
+  const perm="Notification" in window?Notification.permission:"unsupported";
+  v.innerHTML=`<div class="eyebrow">Alerts</div>
+  <div class="card">${alertsBanner()||`<p><b>Notifications are on</b> for ${S.me.devices} device${S.me.devices===1?"":"s"}.</p>`}
+   ${perm==="granted"?`<button class="btn ghost" data-act="push">Re-register this phone</button>`:""}
+   ${S.me.devices?`<button class="btn ghost" data-act="push-test">Send a test notification</button>`:""}
+   <label class="field" for="semail">Also email new bookings to<input id="semail" type="email" value="${esc(st.notify_email)}" placeholder="name@example.com"></label></div>
+  <div class="eyebrow">Booking rules</div>
+  <div class="card"><div class="grid2">
+   <label class="field" for="smin">Earliest booking (hours ahead)<input id="smin" type="number" min="0" max="336" value="${esc(st.min_notice_hours)}"></label>
+   <label class="field" for="smax">Latest booking (days ahead)<input id="smax" type="number" min="1" max="365" value="${esc(st.max_days)}"></label>
+   <label class="field" for="sstep">Start times every (minutes)<select id="sstep">${[10,15,20,30,60].map(n=>`<option ${+st.slot_step===n?"selected":""}>${n}</option>`).join("")}</select></label>
+   <label class="field" for="sbuf">Gap after each client (minutes)<input id="sbuf" type="number" min="0" max="120" value="${esc(st.buffer)}"></label>
+   <label class="field" for="scan">Clients can cancel up to (hours before)<input id="scan" type="number" min="0" max="336" value="${esc(st.cancel_hours)}"></label>
+   <label class="field" for="sdep">Deposit (% of price)<input id="sdep" type="number" min="0" max="100" value="${esc(st.deposit_percent)}"></label></div>
+   <p class="muted">The deposit starts being charged once online payments are connected.</p>
+   <button class="btn" data-act="settings-save">Save settings</button></div>
+  <div class="eyebrow">Treatments and prices</div>
+  <div class="card"><p class="muted">Untick a treatment to hide it from online booking.</p>
+   ${cats.map(c=>`<details class="cat"><summary>${esc(c)}</summary><div class="svchead"><span>Name</span><span>Price £</span><span>Minutes</span><span>On</span></div>
+    ${S.schedule.services.filter(s=>s.category===c).map(s=>`<div class="svcrow" data-sid="${s.id}"><input class="sn" value="${esc(s.name)}" aria-label="Name"><input class="sp" type="number" min="0" step="0.5" value="${s.price/100}" aria-label="Price for ${esc(s.name)}"><input class="sd" type="number" min="5" step="5" value="${s.duration}" aria-label="Minutes for ${esc(s.name)}"><input class="sa" type="checkbox" ${s.active?"checked":""} aria-label="${esc(s.name)} bookable online"></div>`).join("")}</details>`).join("")}
+   <details class="cat"><summary>Add a new treatment</summary><div style="display:grid;gap:8px;margin-top:8px">
+    <label class="field" for="acat">Category<select id="acat">${cats.map(c=>`<option>${esc(c)}</option>`).join("")}</select></label>
+    <label class="field" for="aname">Name<input id="aname"></label>
+    <div class="grid2"><label class="field" for="aprice">Price £<input id="aprice" type="number" min="0" step="0.5"></label><label class="field" for="adur">Minutes<input id="adur" type="number" min="5" step="5" value="30"></label></div></div></details>
+   <button class="btn" data-act="services-save">Save treatments</button></div>
+  <div class="eyebrow">Account</div>
+  <div class="card"><label class="field" for="pcur">Current password<input id="pcur" type="password" autocomplete="current-password"></label>
+   <label class="field" for="pnew">New password (10+ characters)<input id="pnew" type="password" autocomplete="new-password"></label>
+   <button class="btn ghost" data-act="pw-save">Change password</button>
+   <button class="btn ghost" data-act="logout">Sign out of this phone</button></div>`;
+}
+
+/* ---------- sheet ---------- */
+function sheet(html){$("#sheet").innerHTML=html;$("#scrim").hidden=false;document.body.style.overflow="hidden"}
+function closeSheet(){$("#scrim").hidden=true;document.body.style.overflow=""}
+$("#scrim").addEventListener("click",e=>{if(e.target.id==="scrim")closeSheet()});
+
+/* ---------- push ---------- */
+const b64=s=>{const p="=".repeat((4-s.length%4)%4),r=atob((s+p).replace(/-/g,"+").replace(/_/g,"/"));return Uint8Array.from(r,c=>c.charCodeAt(0))};
+async function enablePush(){
+  try{
+    const perm=await Notification.requestPermission();
+    if(perm!=="granted"){toast("Notifications are blocked. Allow them in Settings → Notifications → Bookings.");return}
+    const reg=await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64(S.me.vapid)});
+    await api("push_subscribe",{...sub.toJSON(),label:isIOS?"iPhone":navigator.platform});
+    S.me=await api("me");toast("Notifications are on");go(S.tab);
+  }catch(e){if(e.message!=="auth")toast("Couldn't turn on notifications: "+e.message)}
+}
+
+/* ---------- actions ---------- */
+document.addEventListener("click",async e=>{
+  const r=e.target.closest("[data-r]");if(r){r.closest(".decline").querySelector(".reason").value=r.dataset.r;return}
+  const day=e.target.closest("[data-day]");if(day){S.diaryDate=day.dataset.day;renderDiary();return}
+  const b=e.target.closest("[data-act]");if(!b)return;const act=b.dataset.act;
+  const box=b.closest("[data-id]"),id=box&&+box.dataset.id,card=b.closest(".card,.slot");
+  try{switch(act){
+    case "push":return enablePush();
+    case "push-test":{const j=await api("push_test",{});toast(j.sent?"Test sent":"No device received it. Re-register this phone.");return}
+    case "accept":b.disabled=true;{const j=await api("decide",{id,status:"accepted"});setPending(j.pending);toast(`Accepted. ${j.booking.email?"Client emailed.":""}`);go(S.tab);return}
+    case "decline":card.querySelector(".row[data-id]").hidden=true;card.querySelector(".decline").hidden=false;return;
+    case "cancel-ask":card.querySelector(".row[data-id]").hidden=true;card.querySelector(".decline").hidden=false;return;
+    case "decline-cancel":card.querySelector(".row[data-id]").hidden=false;card.querySelector(".decline").hidden=true;return;
+    case "decline-send":b.disabled=true;{const j=await api("decide",{id,status:"declined",reason:card.querySelector(".reason").value});setPending(j.pending);toast("Declined. Client emailed.");go(S.tab);return}
+    case "cancel-send":b.disabled=true;await api("decide",{id,status:"cancelled",reason:card.querySelector(".reason").value});toast("Appointment cancelled");renderDiary();return;
+    case "goto-req":S.focus=id;go("requests");return;
+    case "close":return closeSheet();
+    case "add-save":return saveAdd(false);
+    case "add-force":return saveAdd(true);
+    case "hours-save":{const hours=[...document.querySelectorAll(".hrow")].map(r=>{const open=r.querySelector(".isopen").checked,brk=!r.querySelector(".brk").hidden;
+        return{weekday:+r.dataset.wd,open:open?r.querySelector(".o").value:null,close:open?r.querySelector(".c").value:null,break_start:open&&brk?r.querySelector(".bs").value:null,break_end:open&&brk?r.querySelector(".be").value:null}});
+      await api("hours",{hours});S.schedule=null;toast("Opening hours saved");return}
+    case "off-add":{const part=$("#opart").checked;const j=await api("timeoff_add",{start_date:$("#osd").value,end_date:$("#oed").value,start_time:part?$("#ost").value:"",end_time:part?$("#oet").value:"",note:$("#onote").value});
+      toast(j.overlapping?`Added. ${j.overlapping} existing booking${j.overlapping>1?"s are":" is"} in that time: check your diary.`:"Time off added");S.schedule=null;renderHours();return}
+    case "off-del":await api("timeoff_delete",{id:+b.dataset.id});S.schedule=null;toast("Removed");renderHours();return;
+    case "settings-save":await api("settings",{notify_email:$("#semail").value,min_notice_hours:$("#smin").value,max_days:$("#smax").value,slot_step:$("#sstep").value,buffer:$("#sbuf").value,cancel_hours:$("#scan").value,deposit_percent:$("#sdep").value});toast("Settings saved");return;
+    case "services-save":{const services=[...document.querySelectorAll(".svcrow")].map(r=>({id:+r.dataset.sid,name:r.querySelector(".sn").value,price:r.querySelector(".sp").value,duration:r.querySelector(".sd").value,active:r.querySelector(".sa").checked}));
+      const add=$("#aname").value.trim()?{category:$("#acat").value,name:$("#aname").value,price:$("#aprice").value,duration:$("#adur").value}:null;
+      await api("services",{services,add});S.schedule=null;toast("Treatments saved");renderSettings();return}
+    case "pw-save":await api("password",{current:$("#pcur").value,new:$("#pnew").value});$("#pcur").value=$("#pnew").value="";toast("Password changed");return;
+    case "logout":await api("logout",{});showLogin();return;
+  }}catch(err){if(err.message!=="auth")toast(err.message);b.disabled=false}
+});
+document.addEventListener("change",e=>{
+  const t=e.target;
+  if(t.classList.contains("isopen")){const r=t.closest(".hrow");t.parentElement.lastChild.textContent=t.checked?" Open":" Closed";
+    r.querySelector(".pair").hidden=!t.checked;r.querySelector(".addbrk").hidden=!t.checked;if(!t.checked)r.querySelector(".brk").hidden=true}
+  if(t.id==="opart")$("#otimes").hidden=!t.checked;
+  if(t.id==="osd"&&$("#oed").value<t.value)$("#oed").value=t.value;
+});
+document.addEventListener("click",e=>{const a=e.target.closest(".addbrk");if(!a)return;const brk=a.closest(".hrow").querySelector(".brk");brk.hidden=!brk.hidden;a.textContent=brk.hidden?"Add a break":"Remove break"});
+
+/* refresh when the app comes back to the front, and when a notification is tapped */
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&!$("#app").hidden&&S.tab==="requests")renderRequests().catch(()=>{})});
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("/admin/sw.js",{scope:"/admin/"}).catch(()=>{});
+  navigator.serviceWorker.addEventListener("message",e=>{const m=(e.data&&e.data.open||"").match(/#b(\d+)/);if(m){S.focus=+m[1];go("requests")}});
+}
+start();
+</script>
+</body>
+</html>
