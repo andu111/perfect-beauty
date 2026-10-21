@@ -36,10 +36,12 @@ function load_booking(int $id): array {
 if ($action === 'login') {
     if (!$isPost) fail('Use POST.', 405);
     $accounts = admin_accounts();
-    if (!$accounts) fail('The admin password has not been set up yet.', 403);
+    if (!admin_accounts()) fail('The admin password has not been set up yet.', 403);
     if (!rate_ok('login', 8, 900, false)) fail('Too many attempts. Wait 15 minutes and try again.', 429);
     // One password box: the password picks the account (Alexandra's or andu's).
     $pw = (string)($in['password'] ?? ''); $who = null;
+    $u = strtolower(trim((string)($in['user'] ?? '')));
+    if ($u !== '') $accounts = isset($accounts[$u]) ? [$u => $accounts[$u]] : [];   // username given: only that account
     foreach ($accounts as $name => $hash) if (password_verify($pw, $hash)) { $who = $name; break; }
     if ($who === null) { rate_ok('login', 8, 900); fail('That password is not right.', 401); }
     $t = bin2hex(random_bytes(32)); $exp = time() + SESSION_DAYS * 86400;

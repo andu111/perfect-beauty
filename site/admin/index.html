@@ -163,6 +163,7 @@ details.cat summary{font-weight:600;cursor:pointer}
     <h1>Perfect <i>Beauty</i></h1>
     <p class="muted">Sign in to manage bookings.</p>
     <div class="err" id="loginErr" hidden></div>
+    <label class="field" for="un">Username<input id="un" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="e.g. andu or alexandra"></label>
     <label class="field" for="pw">Password<input id="pw" type="password" autocomplete="current-password" required></label>
     <button class="btn" type="submit">Sign in</button>
   </form>
@@ -213,7 +214,7 @@ function setPending(n){const d=$("#pendingDot");d.hidden=!n;d.textContent=n;try{
 /* ---------- login ---------- */
 function showLogin(){$("#app").hidden=true;$("#login").hidden=false;$("#pw").focus()}
 $("#loginForm").addEventListener("submit",async e=>{e.preventDefault();$("#loginErr").hidden=true;
-  try{await api("login",{password:$("#pw").value});$("#pw").value="";start()}catch(err){if(err.message!=="auth"){$("#loginErr").textContent=err.message;$("#loginErr").hidden=false}}});
+  try{await api("login",{user:$("#un").value,password:$("#pw").value});$("#pw").value="";start()}catch(err){if(err.message!=="auth"){$("#loginErr").textContent=err.message;$("#loginErr").hidden=false}}});
 
 async function start(){
   try{S.me=await api("me")}catch(e){if(e.message!=="auth"){document.body.innerHTML=`<p style="padding:24px">${esc(e.message)}</p>`}return}
