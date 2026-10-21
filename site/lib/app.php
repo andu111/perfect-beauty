@@ -27,7 +27,17 @@ function db(): PDO {
 
 function migrate(PDO $pdo): void {
     $v = (int)$pdo->query('PRAGMA user_version')->fetchColumn();
-    if ($v >= 1) return;
+    if ($v < 1) migrate_v1($pdo);
+    if ($v < 2) {
+        // Extra admin accounts. Alexandra's password stays in settings.admin_hash (account "alexandra").
+        $pdo->exec("CREATE TABLE IF NOT EXISTS admin_users (name TEXT PRIMARY KEY, hash TEXT NOT NULL, created_at TEXT NOT NULL);");
+        $cols = array_column($pdo->query('PRAGMA table_info(admin_tokens)')->fetchAll(), 'name');
+        if (!in_array('user', $cols, true)) $pdo->exec('ALTER TABLE admin_tokens ADD COLUMN user TEXT');
+        $pdo->exec('PRAGMA user_version = 2');
+    }
+}
+
+function migrate_v1(PDO $pdo): void {
     $pdo->exec("
       CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
       CREATE TABLE services (id INTEGER PRIMARY KEY, category TEXT NOT NULL, name TEXT NOT NULL,
@@ -73,6 +83,27 @@ function migrate(PDO $pdo): void {
         foreach ($items as [$name, $price, $dur]) $svc->execute([$cat, $name, $price * 100, $dur, $i++]);
 
     $pdo->exec('PRAGMA user_version = 1');
+}
+
+/* ---------- admin accounts ---------- */
+const PB_OWNER = 'alexandra';
+/** Hash for an admin account, or '' if it has no password yet. */
+function admin_user_hash(string $name): string {
+    if ($name === PB_OWNER) return setting('admin_hash', '');
+    $q = db()->prepare('SELECT hash FROM admin_users WHERE name=?'); $q->execute([$name]);
+    return (string)($q->fetchColumn() ?: '');
+}
+function set_admin_user_hash(string $name, string $hash): void {
+    if ($name === PB_OWNER) { set_setting('admin_hash', $hash); return; }
+    db()->prepare('INSERT INTO admin_users(name,hash,created_at) VALUES(?,?,?) ON CONFLICT(name) DO UPDATE SET hash=excluded.hash')
+        ->execute([$name, $hash, date('Y-m-d H:i:s')]);
+}
+/** All accounts that have a password: name => hash. */
+function admin_accounts(): array {
+    $a = [];
+    if (setting('admin_hash', '') !== '') $a[PB_OWNER] = setting('admin_hash');
+    foreach (db()->query('SELECT name,hash FROM admin_users')->fetchAll() as $r) $a[$r['name']] = $r['hash'];
+    return $a;
 }
 
 /* ---------- settings ---------- */

@@ -14,12 +14,14 @@ $isPost = $_SERVER['REQUEST_METHOD'] === 'POST';
 if ($isPost && ($_SERVER['HTTP_X_PB'] ?? '') !== '1') fail('Bad request.', 400);
 $in = $isPost ? body() : [];
 
-function admin_ok(): bool {
+/** Signed-in account name, or null. Sessions from before accounts existed belong to Alexandra. */
+function admin_user(): ?string {
     $t = $_COOKIE[COOKIE] ?? '';
-    if (strlen($t) !== 64) return false;
-    $q = db()->prepare('SELECT 1 FROM admin_tokens WHERE hash=? AND expires_at>?');
-    $q->execute([hash('sha256', $t), time()]);
-    return (bool)$q->fetch();
+    if (strlen($t) !== 64) return null;
+    $q = db()->prepare('SELECT COALESCE(user, ?) FROM admin_tokens WHERE hash=? AND expires_at>?');
+    $q->execute([PB_OWNER, hash('sha256', $t), time()]);
+    $u = $q->fetchColumn();
+    return $u === false ? null : (string)$u;
 }
 function set_cookie(string $v, int $exp): void {
     setcookie(COOKIE, $v, ['expires' => $exp, 'path' => '/', 'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
@@ -33,18 +35,22 @@ function load_booking(int $id): array {
 /* ---------- login ---------- */
 if ($action === 'login') {
     if (!$isPost) fail('Use POST.', 405);
-    $hash = setting('admin_hash', '');
-    if ($hash === '') fail('The admin password has not been set up yet.', 403);
+    $accounts = admin_accounts();
+    if (!$accounts) fail('The admin password has not been set up yet.', 403);
     if (!rate_ok('login', 8, 900, false)) fail('Too many attempts. Wait 15 minutes and try again.', 429);
-    if (!password_verify((string)($in['password'] ?? ''), $hash)) { rate_ok('login', 8, 900); fail('That password is not right.', 401); }
+    // One password box: the password picks the account (Alexandra's or andu's).
+    $pw = (string)($in['password'] ?? ''); $who = null;
+    foreach ($accounts as $name => $hash) if (password_verify($pw, $hash)) { $who = $name; break; }
+    if ($who === null) { rate_ok('login', 8, 900); fail('That password is not right.', 401); }
     $t = bin2hex(random_bytes(32)); $exp = time() + SESSION_DAYS * 86400;
-    db()->prepare('INSERT INTO admin_tokens(hash,expires_at,created_at,ua) VALUES(?,?,?,?)')
-        ->execute([hash('sha256', $t), $exp, time(), mb_substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 200)]);
+    db()->prepare('INSERT INTO admin_tokens(hash,expires_at,created_at,ua,user) VALUES(?,?,?,?,?)')
+        ->execute([hash('sha256', $t), $exp, time(), mb_substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 200), $who]);
     db()->prepare('DELETE FROM admin_tokens WHERE expires_at<?')->execute([time()]);
     set_cookie($t, $exp);
     json_out(['ok' => true]);
 }
-if (!admin_ok()) fail('Please sign in.', 401, ['code' => 'auth']);
+$ME = admin_user();
+if ($ME === null) fail('Please sign in.', 401, ['code' => 'auth']);
 
 switch ($action) {
 
@@ -56,7 +62,7 @@ case 'logout':
 case 'me':
     json_out(['ok' => true, 'vapid' => vapid_keys()['public'], 'pending' => pending_count(),
         'devices' => (int)db()->query('SELECT COUNT(*) FROM push_subs')->fetchColumn(),
-        'notify_email' => setting('notify_email', '')]);
+        'notify_email' => setting('notify_email', ''), 'user' => $ME]);
 
 case 'bookings': {
     $scope = $_GET['scope'] ?? 'pending';
@@ -237,11 +243,13 @@ case 'push_test':
 
 case 'password': {
     if (!$isPost) fail('Use POST.', 405);
-    if (!password_verify((string)($in['current'] ?? ''), setting('admin_hash', ''))) fail('Your current password is not right.');
+    // Changes only the signed-in account's password and signs that account out elsewhere.
+    if (!password_verify((string)($in['current'] ?? ''), admin_user_hash($ME))) fail('Your current password is not right.');
     $new = (string)($in['new'] ?? '');
     if (strlen($new) < 10) fail('Use at least 10 characters.');
-    set_setting('admin_hash', password_hash($new, PASSWORD_DEFAULT));
-    db()->prepare('DELETE FROM admin_tokens WHERE hash<>?')->execute([hash('sha256', $_COOKIE[COOKIE] ?? '')]);
+    foreach (admin_accounts() as $name => $h) if ($name !== $ME && password_verify($new, $h)) fail('Choose a different password.');
+    set_admin_user_hash($ME, password_hash($new, PASSWORD_DEFAULT));
+    db()->prepare('DELETE FROM admin_tokens WHERE hash<>? AND COALESCE(user, ?)=?')->execute([hash('sha256', $_COOKIE[COOKIE] ?? ''), PB_OWNER, $ME]);
     json_out(['ok' => true]);
 }
 
