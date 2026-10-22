@@ -105,8 +105,8 @@ case 'decide': {
     db()->prepare('UPDATE bookings SET status=?, reason=?, decided_at=? WHERE id=?')
         ->execute([$to, $reason ?: null, now()->format('Y-m-d H:i:s'), $b['id']]);
     $b = load_booking($b['id']);
-    if (($in['email'] ?? true) !== false) notify_decision($b);
-    json_out(['ok' => true, 'booking' => booking_public($b), 'pending' => pending_count()]);
+    $mailErr = (($in['email'] ?? true) !== false) ? notify_decision($b) : null;
+    json_out(['ok' => true, 'booking' => booking_public($b), 'pending' => pending_count(), 'email_error' => $mailErr]);
 }
 
 case 'create': {
@@ -239,6 +239,22 @@ case 'mail_test': {
     $err = null;
     $ok = send_mail($to, 'Test email from your booking system', "This is a test. If you can read this, booking emails are working.\n\nSent " . now()->format('j M Y, H:i') . "\n", $err);
     $ok ? json_out(['ok' => true, 'to' => $to]) : fail('The email could not be sent: ' . ($err ?: 'the server refused it.'));
+}
+
+case 'mail_log': {
+    $rows = db()->query('SELECT id,at,to_addr,subject,ok,via,error,booking_id FROM mail_log ORDER BY id DESC LIMIT 40')->fetchAll();
+    json_out(['ok' => true, 'emails' => array_map(fn($r) => ['id' => (int)$r['id'], 'at' => $r['at'], 'to' => $r['to_addr'], 'subject' => $r['subject'],
+        'ok' => (bool)$r['ok'], 'via' => $r['via'], 'error' => $r['error']], $rows),
+        'failed' => (int)db()->query("SELECT COUNT(*) FROM mail_log WHERE ok=0 AND at > datetime('now','-7 days')")->fetchColumn()]);
+}
+
+case 'mail_resend': {
+    if (!$isPost) fail('Use POST.', 405);
+    $q = db()->prepare('SELECT * FROM mail_log WHERE id=?'); $q->execute([(int)($in['id'] ?? 0)]);
+    $m = $q->fetch() ?: fail('Email not found.', 404);
+    $err = null;
+    send_mail($m['to_addr'], $m['subject'], (string)$m['body'], $err, $m['booking_id'] ? (int)$m['booking_id'] : null)
+        ? json_out(['ok' => true]) : fail('It still could not be sent: ' . $err);
 }
 
 case 'push_test': {

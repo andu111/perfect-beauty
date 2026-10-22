@@ -221,7 +221,11 @@ async function api(a,data,params=""){
   if(!j.ok)throw Object.assign(new Error(j.error||"Something went wrong."),{data:j});
   return j;
 }
-let toastT;function toast(m){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2800)}
+let toastT;function toast(m,ms=2800){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,ms)}
+function mailToast(done,j){
+  if(j.email_error)toast(`${done} But the email to the client didn't send: ${j.email_error} You can resend it from Settings → Recent emails.`,9000);
+  else toast(`${done}${j.booking.email?" Client emailed.":" No email address, so no email sent."}`);
+}
 
 /* ---------- state ---------- */
 const S={tab:"requests",me:null,schedule:null,diaryDate:ymd(new Date()),focus:null};
@@ -373,6 +377,7 @@ function offRow(o){const s=o.start_at,e=o.end_at,full=s.endsWith("00:00")&&e.end
 async function renderSettings(){
   $("#title").textContent="Settings";const v=$("#view");
   S.schedule=await api("schedule");S.me=await api("me");const st=S.schedule.settings;const {devices}=await api("devices");S.thisHash=await thisDeviceHash();
+  setTimeout(renderMailLog,0);
   const cats=[...new Set(S.schedule.services.map(s=>s.category))];
   const perm="Notification" in window?Notification.permission:"unsupported";
   v.innerHTML=`<div class="eyebrow">Phone notifications</div>
@@ -408,6 +413,8 @@ async function renderSettings(){
     <label class="field" for="aname">Name<input id="aname"></label>
     <div class="grid2"><label class="field" for="aprice">Price £<input id="aprice" type="number" min="0" step="0.5"></label><label class="field" for="adur">Minutes<input id="adur" type="number" min="5" step="5" value="30"></label></div></div></details>
    <button class="btn" data-act="services-save">Save treatments</button></div>
+  <div class="eyebrow">Recent emails</div>
+  <div class="card" id="mailLog"><p class="muted">Loading…</p></div>
   <div class="eyebrow">Account</div>
   <div class="card"><p class="muted" style="margin:0">Signed in as <b>${esc(S.me.user||"alexandra")}</b></p><label class="field" for="pcur">Current password<input id="pcur" type="password" autocomplete="current-password"></label>
    <label class="field" for="pnew">New password (10+ characters)<input id="pnew" type="password" autocomplete="new-password"></label>
@@ -435,6 +442,18 @@ async function enablePush(){
   }catch(e){if(e.message!=="auth")toast("Couldn't turn on notifications: "+e.message)}
 }
 
+async function renderMailLog(){
+  const box=$("#mailLog");if(!box)return;
+  try{const {emails}=await api("mail_log");
+    box.innerHTML=emails.length?`<p class="muted">Every email the booking system sends, newest first. Ones marked Failed never left the system; you can resend them.</p>`+emails.map(m=>`<div class="dev" style="align-items:flex-start"><div class="info">
+      <b style="font-weight:500">${m.ok?"":'<span class="chip declined">Failed</span> '}${esc(m.subject)}</b>
+      <span class="muted">To ${esc(m.to)} · ${dayLabel(m.at.slice(0,16))} ${m.at.slice(11,16)}${m.ok?` · via ${esc(m.via.split(" ")[0])}`:""}</span>
+      ${m.error?`<span class="muted" style="color:var(--bad)">${esc(m.error)}</span>`:""}</div>
+      ${m.ok?"":`<button class="btn small ghost" data-act="mail-resend" data-id="${m.id}">Resend</button>`}</div>`).join("")
+      :`<p class="muted">No emails sent yet.</p>`;
+  }catch(e){if(e.message!=="auth")box.innerHTML=`<p class="muted">${esc(e.message)}</p>`}
+}
+
 function devRow(d){const me=d.hash===S.thisHash;
   return`<div class="dev" data-dev="${d.id}"><div class="info"><b>${esc(d.label)}${me?' <span class="chip accepted">This phone</span>':""}</b>
     <span class="muted">${d.enabled?"Alerts on":"Alerts off"} · added ${dayLabel(d.added.slice(0,16))}</span>
@@ -457,12 +476,13 @@ document.addEventListener("click",async e=>{
     case "dev-del":{const row=b.closest(".dev");if(b.dataset.sure!=="1"){b.dataset.sure="1";b.textContent="Tap again to remove";return}
       await api("device_delete",{id:+row.dataset.dev});toast("Phone removed");S.me=await api("me");renderSettings();return}
     case "email-save":await api("settings",{notify_email:$("#semail").value});toast("Email address saved");return;
-    case "accept":b.disabled=true;{const j=await api("decide",{id,status:"accepted"});setPending(j.pending);toast(`Accepted. ${j.booking.email?"Client emailed.":""}`);go(S.tab);return}
+    case "accept":b.disabled=true;{const j=await api("decide",{id,status:"accepted"});setPending(j.pending);mailToast("Accepted.",j);go(S.tab);return}
     case "decline":card.querySelector(".row[data-id]").hidden=true;card.querySelector(".decline").hidden=false;return;
     case "cancel-ask":card.querySelector(".row[data-id]").hidden=true;card.querySelector(".decline").hidden=false;return;
     case "decline-cancel":card.querySelector(".row[data-id]").hidden=false;card.querySelector(".decline").hidden=true;return;
-    case "decline-send":b.disabled=true;{const j=await api("decide",{id,status:"declined",reason:card.querySelector(".reason").value});setPending(j.pending);toast("Declined. Client emailed.");go(S.tab);return}
-    case "cancel-send":b.disabled=true;await api("decide",{id,status:"cancelled",reason:card.querySelector(".reason").value});toast("Appointment cancelled");renderDiary();return;
+    case "decline-send":b.disabled=true;{const j=await api("decide",{id,status:"declined",reason:card.querySelector(".reason").value});setPending(j.pending);mailToast("Declined.",j);go(S.tab);return}
+    case "cancel-send":b.disabled=true;{const j=await api("decide",{id,status:"cancelled",reason:card.querySelector(".reason").value});mailToast("Appointment cancelled.",j);renderDiary();return}
+    case "mail-resend":b.disabled=true;await api("mail_resend",{id:+b.dataset.id});toast("Email sent");renderSettings();return;
     case "goto-req":S.focus=id;go("requests");return;
     case "close":return closeSheet();
     case "add-save":return saveAdd(false);
