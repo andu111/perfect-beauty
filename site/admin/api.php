@@ -5,6 +5,7 @@ require __DIR__ . '/../lib/app.php';
 require __DIR__ . '/../lib/availability.php';
 require __DIR__ . '/../lib/notify.php';
 require __DIR__ . '/../lib/stripe.php';
+require __DIR__ . '/../lib/portfolio.php';
 
 const COOKIE = 'pb_admin';
 const SESSION_DAYS = 180;
@@ -264,6 +265,65 @@ case 'mail_test': {
     $err = null;
     $ok = send_mail($to, 'Test email from your booking system', "This is a test. If you can read this, booking emails are working.\n\nSent " . now()->format('j M Y, H:i') . "\n", $err);
     $ok ? json_out(['ok' => true, 'to' => $to]) : fail('The email could not be sent: ' . ($err ?: 'the server refused it.'));
+}
+
+case 'photos':
+    json_out(['ok' => true, 'photos' => photos(false), 'cats' => PB_PHOTO_CATS,
+        'services' => db()->query('SELECT name FROM services WHERE active=1 ORDER BY sort, id')->fetchAll(PDO::FETCH_COLUMN)]);
+
+case 'photo_add': {
+    // multipart: full (max 1400px) and thumb (max 720px), already resized and stripped on the phone
+    if (!$isPost) fail('Use POST.', 405);
+    try { [$full] = save_upload('full', 1400); [$thumb, $w, $h] = save_upload('thumb', 720); }
+    catch (Throwable $e) { if (isset($full)) remove_media($full); fail($e->getMessage()); }
+    $cat = in_array($_POST['category'] ?? '', PB_PHOTO_CATS, true) ? $_POST['category'] : 'Lashes';
+    $sort = (int)db()->query('SELECT COALESCE(MIN(sort),0)-1 FROM portfolio')->fetchColumn();   // new photos go first
+    db()->prepare('INSERT INTO portfolio(full,thumb,w,h,category,title,sort,visible,created_at) VALUES(?,?,?,?,?,?,?,1,?)')
+        ->execute([$full, $thumb, $w, $h, $cat, mb_substr(trim((string)($_POST['title'] ?? '')), 0, 60), $sort, now()->format('Y-m-d H:i:s')]);
+    $q = db()->prepare('SELECT * FROM portfolio WHERE id=?'); $q->execute([(int)db()->lastInsertId()]);
+    json_out(['ok' => true, 'photo' => photo_public($q->fetch())]);
+}
+
+case 'photo_before': {
+    // multipart: id + full + thumb for the "before" side of a drag slider
+    if (!$isPost) fail('Use POST.', 405);
+    $q = db()->prepare('SELECT * FROM portfolio WHERE id=?'); $q->execute([(int)($_POST['id'] ?? 0)]);
+    $p = $q->fetch() ?: fail('Photo not found.', 404);
+    try { [$full] = save_upload('full', 1400); [$thumb] = save_upload('thumb', 720); }
+    catch (Throwable $e) { if (isset($full)) remove_media($full); fail($e->getMessage()); }
+    remove_media($p['before_full']); remove_media($p['before_thumb']);
+    db()->prepare('UPDATE portfolio SET before_full=?, before_thumb=? WHERE id=?')->execute([$full, $thumb, $p['id']]);
+    json_out(['ok' => true]);
+}
+
+case 'photo_update': {
+    if (!$isPost) fail('Use POST.', 405);
+    $q = db()->prepare('SELECT * FROM portfolio WHERE id=?'); $q->execute([(int)($in['id'] ?? 0)]);
+    $p = $q->fetch() ?: fail('Photo not found.', 404);
+    $title = trim(mb_substr((string)($in['title'] ?? $p['title']), 0, 60));
+    if ($title === '') fail('Give the photo a short title, like "Russian volume".');
+    $cat = in_array($in['category'] ?? '', PB_PHOTO_CATS, true) ? $in['category'] : $p['category'];
+    if (!empty($in['remove_before'])) { remove_media($p['before_full']); remove_media($p['before_thumb']); $p['before_full'] = $p['before_thumb'] = null; }
+    db()->prepare('UPDATE portfolio SET title=?, category=?, note=?, service=?, visible=?, before_full=?, before_thumb=? WHERE id=?')
+        ->execute([$title, $cat, trim(mb_substr((string)($in['note'] ?? ''), 0, 300)), trim((string)($in['service'] ?? '')) ?: null,
+            array_key_exists('visible', $in) ? ($in['visible'] ? 1 : 0) : (int)$p['visible'], $p['before_full'], $p['before_thumb'], $p['id']]);
+    json_out(['ok' => true]);
+}
+
+case 'photo_order': {
+    if (!$isPost) fail('Use POST.', 405);
+    $up = db()->prepare('UPDATE portfolio SET sort=? WHERE id=?');
+    foreach (array_values((array)($in['ids'] ?? [])) as $i => $id) $up->execute([$i, (int)$id]);
+    json_out(['ok' => true]);
+}
+
+case 'photo_delete': {
+    if (!$isPost) fail('Use POST.', 405);
+    $q = db()->prepare('SELECT * FROM portfolio WHERE id=?'); $q->execute([(int)($in['id'] ?? 0)]);
+    $p = $q->fetch() ?: fail('Photo not found.', 404);
+    foreach (['full', 'thumb', 'before_full', 'before_thumb'] as $k) remove_media($p[$k]);
+    db()->prepare('DELETE FROM portfolio WHERE id=?')->execute([$p['id']]);
+    json_out(['ok' => true]);
 }
 
 case 'stripe_check': {

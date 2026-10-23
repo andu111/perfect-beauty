@@ -395,9 +395,9 @@ function renderMenu(){
 $("#catTabs").addEventListener("click",e=>{const b=e.target.closest("[data-c]");if(b){cat=+b.dataset.c;renderMenu()}});
 renderMenu();
 
-/* portfolio */
+/* portfolio: photos come from the booking manager (api/portfolio.php); the built-in list is a fallback */
 const IMG="img/work/";
-const WORK=[
+let WORK=[
  {f:"lashes-wispy-hybrid",w:650,h:720,cat:"Lashes",t:"Wispy hybrid",d:"Spiky wisps mixed with soft fans for a textured, fluttery finish.",svc:"3D hybrid full set"},
  {f:"lips-blush-fresh",w:540,h:720,cat:"Lips",t:"Lip blush",d:"Photographed straight after treatment. The colour softens and settles over the following weeks as it heals.",svc:"Lip blush"},
  {f:"lashes-mega-volume",w:539,h:720,cat:"Lashes",t:"Mega volume",d:"Dense fans of 8 or more lashes for a bold, dark lash line.",svc:"Mega volume full set"},
@@ -409,38 +409,44 @@ const WORK=[
  {f:"lashes-natural-volume",w:720,h:720,cat:"Lashes",t:"Natural volume",d:"Soft 2D fans for everyday fullness that still looks like your own lashes.",svc:"2D full set"},
  {f:"nails-teal-gel",w:530,h:720,cat:"Nails",t:"Gel colour",d:"Long-lasting gel polish in a bold shade.",svc:"Gel application, fingers"},
  {f:"lashes-in-progress",w:628,h:720,cat:"Lashes",t:"In the chair",d:"Every fan is placed by hand, one natural lash at a time, for a set that grows out evenly.",svc:"3D hybrid full set"}
-];
-const BA=[
+].map(w=>({full:IMG+w.f+".jpg",thumb:IMG+w.f+"-sm.jpg",w:w.w,h:w.h,cat:w.cat,t:w.t,d:w.d,svc:w.svc}));
+let BA=[
  {b:"lips2-before",a:"lips2-after",w:603,h:496,t:"Lip blush",n:"Before and after"},
  {b:"lips1-before",a:"lips1-after",w:367,h:720,t:"Lip blush",n:"Before (with numbing cream) and after"}
-];
+].map(x=>({thumb:IMG+x.a+"-sm.jpg",before_thumb:IMG+x.b+"-sm.jpg",w:x.w,h:x.h,t:x.t,d:x.n,svc:"Lip blush"}));
+const escP=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const svcInfo=n=>ALL_SVC.find(x=>x.n===n);
 let ALL_SVC=MENU.flatMap(c=>c.items.map(([n,p,d])=>({n,p,d})));
 
-$("#baRow").innerHTML=BA.map((x,i)=>{const s=svcInfo("Lip blush");return `
+function renderBA(){
+ $("#baRow").hidden=!BA.length;
+ $("#baRow").innerHTML=BA.map((x,i)=>{const s=svcInfo(x.svc);return `
  <figure class="ba">
   <div class="ba-frame" style="aspect-ratio:${x.w}/${x.h};--pos:50%">
-   <img src="${IMG+x.a}-sm.jpg" alt="${x.t} after treatment" width="${x.w}" height="${x.h}" loading="lazy">
-   <img class="before" src="${IMG+x.b}-sm.jpg" alt="${x.t} before treatment" width="${x.w}" height="${x.h}" loading="lazy">
+   <img src="${escP(x.thumb)}" alt="${escP(x.t)} after treatment" width="${x.w}" height="${x.h}" loading="lazy">
+   <img class="before" src="${escP(x.before_thumb)}" alt="${escP(x.t)} before treatment" width="${x.w}" height="${x.h}" loading="lazy">
    <span class="ba-tag l">Before</span><span class="ba-tag r">After</span>
    <input type="range" min="0" max="100" value="50" id="ba${i}" aria-label="Drag to compare before and after">
    <div class="ba-line"><div class="ba-knob" aria-hidden="true">‹ ›</div></div>
   </div>
-  <figcaption><b>${x.t}</b><span>${x.n} · £${s.p} · ${fmt(s.d)}</span></figcaption>
+  <figcaption><b>${escP(x.t)}</b><span>${escP(x.d)}${s?` · £${s.p} · ${fmt(s.d)}`:""}</span></figcaption>
  </figure>`}).join("");
-document.querySelectorAll(".ba-frame input").forEach(r=>r.addEventListener("input",()=>r.parentElement.style.setProperty("--pos",r.value+"%")));
+ document.querySelectorAll(".ba-frame input").forEach(r=>r.addEventListener("input",()=>r.parentElement.style.setProperty("--pos",r.value+"%")));
+}
+renderBA();
 /* invite a drag: ease the first slider once when it scrolls into view */
-(()=>{const f=document.querySelector(".ba-frame");if(!f||matchMedia("(prefers-reduced-motion: reduce)").matches||!("IntersectionObserver" in window))return;
- const io=new IntersectionObserver(es=>{if(!es[0].isIntersecting)return;io.disconnect();let t0=null;const r=f.querySelector("input");
-  const step=ts=>{t0??=ts;const k=Math.min(1,(ts-t0)/1400),v=50+Math.sin(k*Math.PI*2)*22;f.style.setProperty("--pos",v+"%");r.value=v;if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step)},{threshold:.6});io.observe(f)})();
+(()=>{if(matchMedia("(prefers-reduced-motion: reduce)").matches||!("IntersectionObserver" in window))return;
+ const io=new IntersectionObserver(es=>{if(!es[0].isIntersecting)return;io.disconnect();const f=document.querySelector(".ba-frame");if(!f)return;let t0=null;const r=f.querySelector("input");
+  const step=ts=>{t0??=ts;const k=Math.min(1,(ts-t0)/1400),v=50+Math.sin(k*Math.PI*2)*22;f.style.setProperty("--pos",v+"%");r.value=v;if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step)},{threshold:.6});io.observe($("#baRow"))})();
 
-const CATS=["All","Lashes","Lips","Brows","Nails"]; let wcat="All", shown=[];
+const CAT_ORDER=["Lashes","Lips","Brows","Nails","Waxing","Studio"]; let wcat="All", shown=[];
 function renderWork(){
+  const CATS=["All",...CAT_ORDER.filter(c=>WORK.some(w=>w.cat===c))];if(!CATS.includes(wcat))wcat="All";
   $("#workTabs").innerHTML=CATS.map(c=>{const n=c==="All"?WORK.length:WORK.filter(w=>w.cat===c).length;return `<button class="chip" aria-pressed="${c===wcat}" data-w="${c}">${c}<span class="ct">${n}</span></button>`}).join("");
   shown=WORK.filter(w=>wcat==="All"||w.cat===wcat);
-  $("#workGrid").innerHTML=shown.map((w,i)=>{const s=svcInfo(w.svc);return `<button class="tile" data-i="${i}" aria-label="${w.t}, open photo">
-    <img src="${IMG+w.f}-sm.jpg" alt="${w.t}" width="${w.w}" height="${w.h}" loading="lazy">
-    <span class="cap"><b>${w.t}</b>${s?`<i>£${s.p}</i>`:""}</span></button>`}).join("");
+  $("#workGrid").innerHTML=shown.map((w,i)=>{const s=svcInfo(w.svc);return `<button class="tile" data-i="${i}" aria-label="${escP(w.t)}, open photo">
+    <img src="${escP(w.thumb)}" alt="${escP(w.t)}" width="${w.w}" height="${w.h}" loading="lazy">
+    <span class="cap"><b>${escP(w.t)}</b>${s?`<i>£${s.p}</i>`:""}</span></button>`}).join("");
 }
 $("#workTabs").addEventListener("click",e=>{const b=e.target.closest("[data-w]");if(b){wcat=b.dataset.w;renderWork()}});
 $("#workGrid").addEventListener("click",e=>{const t=e.target.closest(".tile");if(t)openLb(+t.dataset.i)});
@@ -449,11 +455,11 @@ renderWork();
 let li=0, lastFocus=null;
 function showLb(){
   const w=shown[li], s=svcInfo(w.svc);
-  $("#lbImg").src=IMG+w.f+".jpg"; $("#lbImg").alt=w.t;
+  $("#lbImg").src=w.full; $("#lbImg").alt=w.t;
   $("#lbTitle").textContent=w.t; $("#lbDesc").textContent=w.d;
   $("#lbMeta").textContent=s?`${s.n} · £${s.p} · ${fmt(s.d)}`:"";
   $("#lbCount").textContent=`${li+1} / ${shown.length} · ${w.cat}`;
-  const nx=shown[(li+1)%shown.length]; new Image().src=IMG+nx.f+".jpg";
+  const nx=shown[(li+1)%shown.length]; new Image().src=nx.full;
 }
 function openLb(i){li=i;lastFocus=document.activeElement;$("#lb").hidden=false;document.body.style.overflow="hidden";showLb();$("#lbClose").focus()}
 function closeLb(){$("#lb").hidden=true;document.body.style.overflow="";lastFocus&&lastFocus.focus()}
@@ -613,6 +619,8 @@ document.addEventListener("click",e=>{
 $("#close").onclick=closeSheet;
 $("#scrim").addEventListener("click",e=>{if(e.target.id==="scrim")closeSheet()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#scrim").hidden)closeSheet()});
+fetch("api/portfolio.php",{cache:"no-store"}).then(r=>r.json()).then(j=>{if(!j.ok)return;
+  WORK=j.photos.filter(p=>!p.before);BA=j.photos.filter(p=>p.before);renderWork();renderBA()}).catch(()=>{});
 loadInfo().then(()=>{const b=new URLSearchParams(location.search).get("book");if(location.hash==="#book"||b){openSheet(b&&b!=="1"?b:null);if(b)history.replaceState(null,"",location.pathname)}});
 </script>
 

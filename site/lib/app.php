@@ -67,6 +67,21 @@ function migrate(PDO $pdo): void {
                     INSERT OR IGNORE INTO settings(key,value) VALUES('deposit_min_price','1000');
                     PRAGMA user_version = 6;");
     }
+    if ($v < 7) {
+        // Portfolio photos, managed from the booking manager.
+        $pdo->exec("CREATE TABLE IF NOT EXISTS portfolio (id INTEGER PRIMARY KEY, full TEXT NOT NULL, thumb TEXT NOT NULL,
+            w INTEGER NOT NULL, h INTEGER NOT NULL, before_full TEXT, before_thumb TEXT, category TEXT NOT NULL DEFAULT 'Lashes',
+            title TEXT NOT NULL DEFAULT '', note TEXT, service TEXT, sort INTEGER NOT NULL DEFAULT 0, visible INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL)");
+        if (!(int)$pdo->query('SELECT COUNT(*) FROM portfolio')->fetchColumn()) {
+            $ins = $pdo->prepare('INSERT INTO portfolio(full,thumb,w,h,before_full,before_thumb,category,title,note,service,sort,created_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?)');
+            foreach ((require __DIR__ . '/seed-portfolio.php') as $i => $r)
+                $ins->execute([$r['full'], $r['thumb'], $r['w'], $r['h'], $r['before_full'], $r['before_thumb'], $r['category'],
+                    $r['title'], $r['note'], $r['service'], $i, date('Y-m-d H:i:s')]);
+        }
+        $pdo->exec('PRAGMA user_version = 7');
+    }
 }
 
 function migrate_v1(PDO $pdo): void {

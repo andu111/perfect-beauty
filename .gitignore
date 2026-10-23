@@ -5,3 +5,4 @@ deploy/deploy.lock
 .DS_Store
 perfect-beauty-data/
 site/admin/.htaccess
+site/media/

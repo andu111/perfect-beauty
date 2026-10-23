@@ -47,7 +47,7 @@ main{padding-block:16px calc(var(--tabh) + 28px + env(safe-area-inset-bottom,0px
 
 /* tabs */
 .tabs{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
-.tabs .wrap{display:grid;grid-template-columns:repeat(4,1fr);height:var(--tabh)}
+.tabs .wrap{display:grid;grid-template-columns:repeat(5,1fr);height:var(--tabh)}
 .tabs button{border:0;background:none;display:grid;place-items:center;gap:2px;font-size:12px;font-weight:500;color:var(--muted);position:relative;padding:8px 0}
 .tabs button svg{width:24px;height:24px}
 .tabs button[aria-current="page"]{color:var(--berry)}
@@ -145,6 +145,24 @@ main{padding-block:16px calc(var(--tabh) + 28px + env(safe-area-inset-bottom,0px
 .renamebox{display:flex;gap:6px}
 .renamebox input{flex:1;min-width:0;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:7px 9px;font-size:16px}
 
+/* photos */
+.ph{display:grid;grid-template-columns:64px 1fr auto;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;transition:transform .2s}
+.ph img{width:64px;height:64px;object-fit:cover;border-radius:10px;display:block;background:var(--berry-soft)}
+.ph.off img{opacity:.45}
+.ph .info{display:grid;gap:3px;min-width:0}
+.ph .info b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ph .info span{font-size:13px;color:var(--muted)}
+.ph .mv{display:grid;grid-template-columns:repeat(2,38px);gap:6px}
+.ph .mv button{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--bg);font-size:17px;line-height:1;padding:0}
+.ph .mv button:disabled{opacity:.3}
+.ph.moved{transform:scale(1.02);box-shadow:0 0 0 2px var(--berry)}
+.addph{display:flex;align-items:center;justify-content:center;gap:8px;border:2px dashed var(--line);border-radius:16px;padding:18px;font-weight:600;color:var(--berry);cursor:pointer;background:var(--surface)}
+.preview{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.preview figure{margin:0;display:grid;gap:4px;font-size:12px;color:var(--muted);text-align:center}
+.preview img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;background:var(--berry-soft)}
+.preview .empty{aspect-ratio:1;border:2px dashed var(--line);border-radius:12px;display:grid;place-items:center;padding:8px;color:var(--muted);font-size:13px;cursor:pointer}
+.progress{font-size:14px;color:var(--muted)}
+
 /* services */
 details.cat{border-top:1px solid var(--line);padding-block:10px}
 details.cat summary{font-weight:600;cursor:pointer}
@@ -193,6 +211,7 @@ details.cat summary{font-weight:600;cursor:pointer}
     <button data-tab="requests" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>Requests<span class="dot" id="pendingDot" hidden></span></button>
     <button data-tab="diary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Diary</button>
     <button data-tab="hours"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>Hours</button>
+    <button data-tab="photos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="m4 17 5-4.5 3.5 3 3-2.5 4.5 4"/></svg>Photos</button>
     <button data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M4.2 7.5l2.2 1.3M17.6 15.2l2.2 1.3M4.2 16.5l2.2-1.3M17.6 8.8l2.2-1.3"/></svg>Settings</button>
   </div></nav>
 </div>
@@ -252,7 +271,59 @@ async function start(){
 document.querySelectorAll(".tabs button").forEach(b=>b.addEventListener("click",()=>go(b.dataset.tab)));
 function go(tab){S.tab=tab;document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===tab?"page":"false"));
   $("#addBtn").hidden=tab!=="diary";$("#subtitle").textContent="";window.scrollTo(0,0);
-  ({requests:renderRequests,diary:renderDiary,hours:renderHours,settings:renderSettings})[tab]()}
+  ({requests:renderRequests,diary:renderDiary,hours:renderHours,photos:renderPhotos,settings:renderSettings})[tab]()}
+
+/* ---------- portfolio photos ---------- */
+let PH={photos:[],cats:[],services:[]};
+async function renderPhotos(){
+  $("#title").textContent="Portfolio photos";
+  PH=await api("photos");
+  const shownN=PH.photos.filter(p=>p.visible).length;
+  $("#subtitle").textContent=`${shownN} on the website`;
+  $("#view").innerHTML=`<label class="addph" for="phFiles"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Add photos</label>
+   <input type="file" id="phFiles" accept="image/*" multiple hidden>
+   <p class="progress" id="phProgress" hidden></p>
+   <p class="muted">Photos show on the website in this order. Use the arrows to move them, and tap a photo to change its title, treatment or before photo, hide it, or delete it. Photos with a before photo appear as drag sliders at the top.</p>
+   <div style="display:grid;gap:8px" id="phList">${PH.photos.map((p,i)=>phRow(p,i)).join("")||'<div class="empty"><b>No photos yet</b>Add some to show your work on the website.</div>'}</div>`;
+}
+function phRow(p,i){const n=PH.photos.length;
+  return `<div class="ph${p.visible?"":" off"}" data-pid="${p.id}">
+   <img src="/${esc(p.thumb)}" alt="" loading="lazy" data-act="ph-edit">
+   <div class="info" data-act="ph-edit" style="cursor:pointer"><b>${esc(p.t||"Untitled")}</b>
+    <span>${esc(p.cat)}${p.before?" · before/after":""}${p.svc?" · "+esc(p.svc):""}</span>
+    ${p.visible?"":'<span><span class="chip declined">Hidden</span></span>'}</div>
+   <div class="mv"><button data-act="ph-up" aria-label="Move ${esc(p.t)} up" ${i===0?"disabled":""}>↑</button><button data-act="ph-down" aria-label="Move ${esc(p.t)} down" ${i===n-1?"disabled":""}>↓</button></div></div>`}
+
+/* resize on the phone: also removes location and camera data */
+function resized(file,max){return new Promise((res,rej)=>{const url=URL.createObjectURL(file),img=new Image();
+  img.onload=()=>{const k=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight)),c=document.createElement("canvas");
+    c.width=Math.round(img.naturalWidth*k);c.height=Math.round(img.naturalHeight*k);c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+    URL.revokeObjectURL(url);c.toBlob(b=>b?res(b):rej(new Error("Couldn't read the photo")),"image/jpeg",max>1000?.84:.8)};
+  img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error("That file isn't a photo the browser can open"))};img.src=url})}
+async function upload(action,file,extra){
+  const fd=new FormData();fd.append("full",await resized(file,1400),"full.jpg");fd.append("thumb",await resized(file,720),"thumb.jpg");
+  for(const [k,v] of Object.entries(extra||{}))fd.append(k,v);
+  const r=await fetch(`/admin/api.php?a=${action}`,{method:"POST",headers:{"X-PB":"1"},body:fd});const j=await r.json().catch(()=>({ok:false,error:"The upload didn't finish. Try again."}));
+  if(j.code==="auth"){showLogin();throw new Error("auth")}
+  if(!j.ok)throw new Error(j.error);return j}
+let orderT;function saveOrder(){clearTimeout(orderT);orderT=setTimeout(()=>api("photo_order",{ids:PH.photos.map(p=>p.id)}).then(()=>toast("Order saved")).catch(e=>toast(e.message)),500)}
+function movePhoto(id,to){const i=PH.photos.findIndex(p=>p.id===id);if(i<0)return;to=Math.max(0,Math.min(PH.photos.length-1,to));
+  const [p]=PH.photos.splice(i,1);PH.photos.splice(to,0,p);
+  $("#phList").innerHTML=PH.photos.map((x,k)=>phRow(x,k)).join("");const row=$(`.ph[data-pid="${id}"]`);row.classList.add("moved");setTimeout(()=>row.classList.remove("moved"),500);saveOrder()}
+function editPhoto(id){const p=PH.photos.find(x=>x.id===id);if(!p)return;const i=PH.photos.indexOf(p);
+  sheet(`<header><h2>Edit photo</h2><button class="x" data-act="close" aria-label="Close">×</button></header>
+   <div class="preview"><figure>${p.before?`<img src="/${esc(p.before_thumb)}" alt="">`:`<label class="empty" for="phBefore">+ Add a before photo for a drag slider</label>`}<span>Before (optional)</span></figure>
+    <figure><img src="/${esc(p.thumb)}" alt=""><span>After / the photo</span></figure></div>
+   <input type="file" id="phBefore" accept="image/*" hidden data-pid="${p.id}">
+   ${p.before?`<div class="row"><label class="btn ghost small" for="phBefore">Replace before photo</label><button class="btn ghost small" data-act="ph-before-del" data-pid="${p.id}">Remove before photo</button></div>`:""}
+   <label class="field" for="pt">Title<input id="pt" value="${esc(p.t)}" maxlength="60" placeholder="e.g. Russian volume"></label>
+   <div class="grid2"><label class="field" for="pc">Category<select id="pc">${PH.cats.map(c=>`<option ${c===p.cat?"selected":""}>${esc(c)}</option>`).join("")}</select></label>
+    <label class="field" for="ps">Treatment to book<select id="ps"><option value="">None</option>${PH.services.map(s=>`<option ${s===p.svc?"selected":""}>${esc(s)}</option>`).join("")}</select></label></div>
+   <label class="field" for="pd">Description (shown when the photo is opened)<textarea id="pd" rows="3" maxlength="300">${esc(p.d)}</textarea></label>
+   <label class="switch"><input type="checkbox" id="pv" ${p.visible?"checked":""}> Show on the website</label>
+   <div class="row"><button class="btn ghost small" data-act="ph-top" data-pid="${p.id}" ${i===0?"disabled":""}>Move to first</button><button class="btn ghost small" data-act="ph-bottom" data-pid="${p.id}" ${i===PH.photos.length-1?"disabled":""}>Move to last</button></div>
+   <button class="btn" data-act="ph-save" data-pid="${p.id}">Save</button>
+   <button class="btn ghost" data-act="ph-del" data-pid="${p.id}" style="color:var(--bad)">Delete photo</button>`)}
 
 /* ---------- alerts banner ---------- */
 const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
@@ -503,6 +574,15 @@ document.addEventListener("click",async e=>{
     case "mail-resend":b.disabled=true;await api("mail_resend",{id:+b.dataset.id});toast("Email sent");renderSettings();return;
     case "goto-req":S.focus=id;go("requests");return;
     case "close":return closeSheet();
+    case "ph-edit":return editPhoto(+b.closest("[data-pid]").dataset.pid);
+    case "ph-up":{const id=+b.closest("[data-pid]").dataset.pid;return movePhoto(id,PH.photos.findIndex(p=>p.id===id)-1)}
+    case "ph-down":{const id=+b.closest("[data-pid]").dataset.pid;return movePhoto(id,PH.photos.findIndex(p=>p.id===id)+1)}
+    case "ph-top":closeSheet();return movePhoto(+b.dataset.pid,0);
+    case "ph-bottom":closeSheet();return movePhoto(+b.dataset.pid,PH.photos.length-1);
+    case "ph-save":b.disabled=true;await api("photo_update",{id:+b.dataset.pid,title:$("#pt").value,category:$("#pc").value,service:$("#ps").value,note:$("#pd").value,visible:$("#pv").checked});closeSheet();toast("Photo saved");renderPhotos();return;
+    case "ph-before-del":await api("photo_update",{id:+b.dataset.pid,remove_before:true});toast("Before photo removed");await renderPhotos();editPhoto(+b.dataset.pid);return;
+    case "ph-del":if(b.dataset.sure!=="1"){b.dataset.sure="1";b.textContent="Tap again to delete for good";return}
+      await api("photo_delete",{id:+b.dataset.pid});closeSheet();toast("Photo deleted");renderPhotos();return;
     case "add-save":return saveAdd(false);
     case "add-force":return saveAdd(true);
     case "hours-save":{const hours=[...document.querySelectorAll(".hrow")].map(r=>{const open=r.querySelector(".isopen").checked,brk=!r.querySelector(".brk").hidden;
@@ -528,6 +608,13 @@ document.addEventListener("change",e=>{
   if(t.classList.contains("isopen")){const r=t.closest(".hrow");t.parentElement.lastChild.textContent=t.checked?" Open":" Closed";
     r.querySelector(".pair").hidden=!t.checked;r.querySelector(".addbrk").hidden=!t.checked;if(!t.checked)r.querySelector(".brk").hidden=true}
   if(t.id==="opart")$("#otimes").hidden=!t.checked;
+  if(t.id==="phFiles"&&t.files.length){(async()=>{const files=[...t.files],pr=$("#phProgress");pr.hidden=false;let done=0,failed=[];
+    for(const f of files){pr.textContent=`Adding photo ${done+1} of ${files.length}…`;
+      try{await upload("photo_add",f,{category:"Lashes"});done++}catch(e){if(e.message==="auth")return;failed.push(`${f.name}: ${e.message}`)}}
+    toast(failed.length?`Added ${done}. ${failed.length} didn't upload: ${failed[0]}`:`Added ${done} photo${done===1?"":"s"}. Tap each one to give it a title.`,6000);
+    await renderPhotos()})()}
+  if(t.id==="phBefore"&&t.files.length){const pid=+t.dataset.pid,f=t.files[0];toast("Adding before photo…");
+    upload("photo_before",f,{id:pid}).then(async()=>{toast("Before photo added");await renderPhotos();editPhoto(pid)}).catch(e=>{if(e.message!=="auth")toast(e.message)})}
   if(t.id==="dmode"){$("#dpctWrap").hidden=t.value!=="percent";$("#dfixWrap").hidden=t.value!=="fixed"}
   if(t.classList.contains("devToggle")){const row=t.closest(".dev"),name=row.querySelector("b").firstChild.textContent.trim();
     api("device_update",{id:+row.dataset.dev,enabled:t.checked}).then(()=>{const m=row.querySelector(".info .muted");m.textContent=m.textContent.replace(/^Alerts (on|off)/,t.checked?"Alerts on":"Alerts off");toast(`Alerts ${t.checked?"on":"off"} for ${name}`)}).catch(err=>{t.checked=!t.checked;toast(err.message)})}
