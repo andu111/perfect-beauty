@@ -4,6 +4,7 @@ define('PB', 1);
 require __DIR__ . '/../lib/app.php';
 require __DIR__ . '/../lib/availability.php';
 require __DIR__ . '/../lib/notify.php';
+require __DIR__ . '/../lib/stripe.php';
 
 const COOKIE = 'pb_admin';
 const SESSION_DAYS = 180;
@@ -74,7 +75,7 @@ case 'bookings': {
         $q = db()->query("SELECT * FROM bookings WHERE status='pending' ORDER BY start_at");
     } elseif ($scope === 'day' && valid_date($_GET['date'] ?? '')) {
         $d = $_GET['date'];
-        $q = db()->prepare("SELECT * FROM bookings WHERE start_at>=? AND start_at<? AND status IN ('pending','accepted','cancelled') ORDER BY start_at");
+        $q = db()->prepare("SELECT * FROM bookings WHERE start_at>=? AND start_at<? AND status IN ('pending','accepted','cancelled','awaiting_payment') ORDER BY start_at");
         $q->execute(["$d 00:00", "$d 24:00"]);
     } elseif ($scope === 'upcoming') {
         $q = db()->prepare("SELECT * FROM bookings WHERE status='accepted' AND start_at>=? ORDER BY start_at LIMIT 200");
@@ -105,8 +106,11 @@ case 'decide': {
     db()->prepare('UPDATE bookings SET status=?, reason=?, decided_at=? WHERE id=?')
         ->execute([$to, $reason ?: null, now()->format('Y-m-d H:i:s'), $b['id']]);
     $b = load_booking($b['id']);
+    // Deposit: take it on Accept, give it back on Decline or Cancel.
+    $payErr = $to === 'accepted' ? deposit_capture($b) : deposit_release($b, $to === 'declined' ? 'Declined by the studio' : 'Cancelled by the studio');
+    $b = load_booking($b['id']);
     $mailErr = (($in['email'] ?? true) !== false) ? notify_decision($b) : null;
-    json_out(['ok' => true, 'booking' => booking_public($b), 'pending' => pending_count(), 'email_error' => $mailErr]);
+    json_out(['ok' => true, 'booking' => booking_public($b), 'pending' => pending_count(), 'email_error' => $mailErr, 'payment_error' => $payErr]);
 }
 
 case 'create': {
@@ -135,9 +139,12 @@ case 'schedule': {
     $svcs = db()->query('SELECT * FROM services ORDER BY sort, id')->fetchAll();
     $off = db()->prepare('SELECT * FROM time_off WHERE end_at>=? ORDER BY start_at');
     $off->execute([now()->format('Y-m-d 00:00')]);
-    $keys = ['business_name', 'notify_email', 'slot_step', 'buffer', 'min_notice_hours', 'max_days', 'cancel_hours', 'deposit_percent', 'email_alerts'];
+    $keys = ['business_name', 'notify_email', 'slot_step', 'buffer', 'min_notice_hours', 'max_days', 'cancel_hours', 'deposit_percent', 'email_alerts', 'deposit_mode'];
     json_out(['ok' => true, 'hours' => hours_list(), 'time_off' => $off->fetchAll(),
-        'settings' => array_combine($keys, array_map(fn($k) => setting($k, ''), $keys)) + ['from_email' => setting('from_email', ''), 'smtp_set' => setting('smtp_pass', '') !== ''],
+        'settings' => array_combine($keys, array_map(fn($k) => setting($k, ''), $keys)) + ['from_email' => setting('from_email', ''), 'smtp_set' => setting('smtp_pass', '') !== '',
+            'deposit_fixed' => (int)setting('deposit_fixed', 1000) / 100, 'deposit_min_price' => (int)setting('deposit_min_price', 1000) / 100,
+            'stripe_mode' => stripe_mode(), 'webhook_set' => setting('stripe_webhook_secret', '') !== '',
+            'webhook_url' => site_url('/admin/stripe-webhook.php')],
         'services' => array_map(fn($s) => ['id' => (int)$s['id'], 'category' => $s['category'], 'name' => $s['name'],
             'price' => (int)$s['price'], 'duration' => (int)$s['duration'], 'active' => (bool)$s['active']], $svcs)]);
 }
@@ -197,6 +204,24 @@ case 'settings': {
         set_setting('from_email', $e);
     }
     if (isset($in['email_alerts'])) set_setting('email_alerts', $in['email_alerts'] ? '1' : '0');
+    if (isset($in['deposit_mode'])) {
+        if (!in_array($in['deposit_mode'], ['off', 'percent', 'fixed'], true)) fail('Choose how the deposit is worked out.');
+        set_setting('deposit_mode', $in['deposit_mode']);
+    }
+    foreach (['deposit_fixed' => [0.5, 500], 'deposit_min_price' => [0, 1000]] as $k => [$lo, $hi]) if (isset($in[$k]) && $in[$k] !== '') {
+        $v = (float)$in[$k]; if ($v < $lo || $v > $hi) fail('Check the deposit amounts.'); set_setting($k, (string)(int)round($v * 100));
+    }
+    if (isset($in['stripe_secret']) && trim($in['stripe_secret']) !== '') {
+        $k = trim($in['stripe_secret']);
+        if (!preg_match('/^(sk|rk)_(test|live)_[A-Za-z0-9]+$/', $k)) fail('That doesn\'t look like a Stripe secret key. It starts with sk_live_ or sk_test_.');
+        set_setting('stripe_secret', $k);
+    }
+    if (isset($in['stripe_webhook_secret']) && trim($in['stripe_webhook_secret']) !== '') {
+        $k = trim($in['stripe_webhook_secret']);
+        if (!str_starts_with($k, 'whsec_')) fail('The signing secret starts with whsec_.');
+        set_setting('stripe_webhook_secret', $k);
+    }
+    if (!empty($in['stripe_clear'])) { set_setting('stripe_secret', ''); set_setting('stripe_webhook_secret', ''); }
     if (isset($in['smtp_pass']) && $in['smtp_pass'] !== '') set_setting('smtp_pass', (string)$in['smtp_pass']);
     if (!empty($in['smtp_clear'])) set_setting('smtp_pass', '');
     if (isset($in['business_name']) && trim($in['business_name']) !== '') set_setting('business_name', trim(mb_substr($in['business_name'], 0, 60)));
@@ -239,6 +264,14 @@ case 'mail_test': {
     $err = null;
     $ok = send_mail($to, 'Test email from your booking system', "This is a test. If you can read this, booking emails are working.\n\nSent " . now()->format('j M Y, H:i') . "\n", $err);
     $ok ? json_out(['ok' => true, 'to' => $to]) : fail('The email could not be sent: ' . ($err ?: 'the server refused it.'));
+}
+
+case 'stripe_check': {
+    if (!stripe_ready()) fail('Add your Stripe secret key first.');
+    try { $a = stripe_req('GET', '/v1/account'); }
+    catch (Throwable $e) { fail('Stripe said: ' . $e->getMessage()); }
+    json_out(['ok' => true, 'mode' => stripe_mode(), 'name' => $a['business_profile']['name'] ?? ($a['settings']['dashboard']['display_name'] ?? ''),
+        'charges' => (bool)($a['charges_enabled'] ?? false), 'payouts' => (bool)($a['payouts_enabled'] ?? false)]);
 }
 
 case 'mail_log': {

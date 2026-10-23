@@ -53,9 +53,21 @@ function server_mail(string $to, string $subject, string $text): bool {
 }
 
 function booking_lines(array $b): string {
+    $dep = (int)($b['deposit'] ?? 0);
+    $depLine = '';
+    if ($dep > 0) {
+        $rest = money(max(0, (int)$b['price'] - $dep));
+        $depLine = match ($b['deposit_status'] ?? '') {
+            'authorized' => "Deposit: " . money($dep) . " held on your card. It's only taken if the appointment is confirmed.\n",
+            'captured'   => "Deposit paid: " . money($dep) . ". Left to pay in the studio: $rest.\n",
+            'released'   => "Deposit: the " . money($dep) . " hold on your card has been released.\n",
+            'refunded'   => "Deposit: " . money($dep) . " refunded to your card.\n",
+            default      => '',
+        };
+    }
     return "Treatment: {$b['service_name']}\n" .
            "When: " . nice_when($b['start_at']) . " (" . dur_text((int)$b['duration']) . ")\n" .
-           "Price: " . money((int)$b['price']) . "\n" .
+           "Price: " . money((int)$b['price']) . "\n" . $depLine .
            "Reference: {$b['ref']}\n";
 }
 
@@ -94,11 +106,14 @@ function notify_decision(array $b): ?string {
         send_mail((string)$b['email'], "Sorry, we can't fit you in at that time",
             "Hi $first,\n\nUnfortunately we can't do " . nice_when($b['start_at']) . " for {$b['service_name']}.\n" .
             ($b['reason'] ? "\n{$b['reason']}\n" : '') .
+            (($b['deposit_status'] ?? '') === 'released' ? "\nThe " . money((int)$b['deposit']) . " deposit held on your card has been released. Your bank may take a few days to remove it from your statement.\n" : '') .
             "\nPlease pick another time here: " . site_url('/#book') . "\n" . signoff(), $err, $id);
     } elseif ($b['status'] === 'cancelled') {
         send_mail((string)$b['email'], 'Your appointment has been cancelled',
             "Hi $first,\n\nYour appointment on " . nice_when($b['start_at']) . " for {$b['service_name']} has been cancelled.\n" .
-            ($b['reason'] ? "\n{$b['reason']}\n" : '') . "\nBook a new time: " . site_url('/#book') . "\n" . signoff(), $err, $id);
+            ($b['reason'] ? "\n{$b['reason']}\n" : '') .
+            (in_array($b['deposit_status'] ?? '', ['released', 'refunded'], true) ? "\nYour " . money((int)$b['deposit']) . " deposit has been returned to your card. Refunds usually show within 5 to 10 days.\n" : '') .
+            "\nBook a new time: " . site_url('/#book') . "\n" . signoff(), $err, $id);
     }
     return $err;
 }

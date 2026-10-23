@@ -7,7 +7,8 @@ if (!defined('PB')) { http_response_code(404); exit; }
 
 date_default_timezone_set('Europe/London');
 define('PB_DATA', getenv('PB_DATA_DIR') ?: dirname(__DIR__, 2) . '/perfect-beauty-data');
-define('PB_STATUSES_BUSY', "('pending','accepted')");
+// Bookings that hold their time slot. 'awaiting_payment' holds it for a few minutes while the deposit is paid.
+define('PB_STATUSES_BUSY', "('pending','accepted','awaiting_payment')");
 
 function tz(): DateTimeZone { static $t; return $t ??= new DateTimeZone('Europe/London'); }
 function now(): DateTimeImmutable { return new DateTimeImmutable('now', tz()); }
@@ -22,6 +23,9 @@ function db(): PDO {
     ]);
     $pdo->exec('PRAGMA busy_timeout = 8000; PRAGMA foreign_keys = ON;');
     migrate($pdo);
+    // Free slots whose deposit was never paid.
+    $pdo->prepare("UPDATE bookings SET status='expired' WHERE status='awaiting_payment' AND hold_until < ?")
+        ->execute([(new DateTimeImmutable('now', new DateTimeZone('Europe/London')))->format('Y-m-d H:i:s')]);
     return $pdo;
 }
 
@@ -52,6 +56,16 @@ function migrate(PDO $pdo): void {
         $pdo->exec("CREATE TABLE IF NOT EXISTS mail_log (id INTEGER PRIMARY KEY, at TEXT NOT NULL, to_addr TEXT NOT NULL,
             subject TEXT NOT NULL, body TEXT, ok INTEGER NOT NULL, via TEXT, error TEXT, booking_id INTEGER);
             CREATE INDEX IF NOT EXISTS mail_log_at ON mail_log(at); PRAGMA user_version = 5;");
+    }
+    if ($v < 6) {
+        // Online deposits through Stripe.
+        $cols = array_column($pdo->query('PRAGMA table_info(bookings)')->fetchAll(), 'name');
+        foreach (['deposit INTEGER NOT NULL DEFAULT 0', 'deposit_status TEXT', 'stripe_session TEXT', 'stripe_pi TEXT', 'hold_until TEXT'] as $c)
+            if (!in_array(strtok($c, ' '), $cols, true)) $pdo->exec("ALTER TABLE bookings ADD COLUMN $c");
+        $pdo->exec("INSERT OR IGNORE INTO settings(key,value) VALUES('deposit_mode','off');
+                    INSERT OR IGNORE INTO settings(key,value) VALUES('deposit_fixed','1000');
+                    INSERT OR IGNORE INTO settings(key,value) VALUES('deposit_min_price','1000');
+                    PRAGMA user_version = 6;");
     }
 }
 
@@ -185,6 +199,7 @@ function booking_public(array $b): array {
         'duration' => (int)$b['duration'], 'start' => $b['start_at'], 'end' => $b['end_at'],
         'name' => $b['name'], 'phone' => $b['phone'], 'email' => $b['email'], 'notes' => $b['notes'],
         'status' => $b['status'], 'source' => $b['source'], 'reason' => $b['reason'],
+        'deposit' => (int)($b['deposit'] ?? 0), 'deposit_status' => $b['deposit_status'] ?? null,
         'created' => $b['created_at'], 'decided' => $b['decided_at'],
     ];
 }

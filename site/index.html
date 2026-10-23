@@ -467,9 +467,9 @@ document.addEventListener("keydown",e=>{if($("#lb").hidden)return;if(e.key==="Es
 
 /* booking: live free times from the booking system */
 let ALL=[];
-function rebuildAll(){ALL=MENU.flatMap(c=>c.items.map(([n,p,d,id])=>({n,p,d,id,c:c.cat})));ALL_SVC=ALL}
+function rebuildAll(){ALL=MENU.flatMap(c=>c.items.map(([n,p,d,id,dep])=>({n,p,d,id,dep:dep||0,c:c.cat})));ALL_SVC=ALL}
 rebuildAll();
-let LIVE=false, RULES={max_days:60,deposit_percent:0};
+let LIVE=false, RULES={max_days:60,deposits:false,cancel_hours:24};
 const B={step:0,svc:null,day:null,time:null,name:"",phone:"",email:"",notes:"",avail:null,availFor:null,loading:false,err:"",sending:false,ref:""};
 const DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DOWL=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -481,7 +481,7 @@ const niceDay=s=>{const d=dateOf(s);return `${DOW[d.getDay()]} ${d.getDate()} ${
 async function loadInfo(){
   try{
     const r=await fetch("api/info.php",{cache:"no-store"});const j=await r.json();if(!j.ok)throw new Error();
-    MENU=j.categories.map(c=>({cat:c.cat,items:c.items.map(s=>[s.name,s.price/100,s.duration,s.id])}));
+    MENU=j.categories.map(c=>({cat:c.cat,items:c.items.map(s=>[s.name,s.price/100,s.duration,s.id,(s.deposit||0)/100])}));
     RULES=j.rules;rebuildAll();LIVE=true;
     VOLN.forEach(([set,inf],i)=>{const a=ALL.find(x=>x.n===set),b=ALL.find(x=>x.n===inf);if(a){VOL[i].set=a.p;VOL[i].t=a.d}if(b)VOL[i].inf=b.p});
     if(cat>=MENU.length)cat=0;
@@ -509,6 +509,7 @@ async function loadAvail(){
   B.loading=false;renderSheet();
 }
 
+const money2=v=>Number.isInteger(+v)?String(+v):(+v).toFixed(2);
 const detailsOk=()=>B.name.trim().length>=2&&B.phone.replace(/\D/g,"").length>=10&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(B.email.trim());
 
 function renderSheet(){
@@ -547,8 +548,12 @@ function renderSheet(){
       <div class="row"><span>${escH(B.svc.n)}</span><span>£${B.svc.p}</span></div>
       <div class="row"><span>${niceDay(B.day)}, ${B.time}</span><span>${fmt(B.svc.d)}</span></div>
       <div class="row"><span>${escH(B.name)}</span><span>${escH(B.phone)}</span></div>
-      <div class="row"><span>${escH(B.email)}</span><span></span></div></div>
-      <p class="note">This is a booking request. The studio will confirm it by email, usually the same day. ${RULES.deposit_percent?"":"You pay in the studio on the day."}</p>`;
+      <div class="row"><span>${escH(B.email)}</span><span></span></div>
+      ${B.svc.dep?`<div class="row" style="border-top:1px solid var(--line);padding-top:6px;margin-top:2px"><span><b>Deposit to pay now</b></span><span><b>£${money2(B.svc.dep)}</b></span></div>
+      <div class="row"><span>Left to pay in the studio</span><span>£${money2(B.svc.p-B.svc.dep)}</span></div>`:""}</div>
+      <p class="note">${B.svc.dep
+        ?`Your deposit is only <b>held</b> on your card until the studio confirms your appointment, then it's taken. If the time can't be confirmed, the hold is released. Pay by card, Apple Pay or Google Pay on the next screen. Cancel up to ${RULES.cancel_hours} hours before for a full refund.`
+        :"This is a booking request. The studio will confirm it by email, usually the same day. You pay in the studio on the day."}</p>`;
     next=!B.sending;
   } else {
     $("#sheetTitle").textContent="Request sent";
@@ -558,7 +563,7 @@ function renderSheet(){
     foot.innerHTML=`<button class="btn" id="fin">Done</button>`; $("#fin").onclick=closeSheet; return;
   }
   body.innerHTML=html;
-  foot.innerHTML=`${B.step>0?`<button class="btn ghost" id="back">Back</button>`:""}<button class="btn" id="next" ${next?"":"disabled"}>${B.step===3?(B.sending?"Sending…":"Send booking request"):"Continue"}</button>`;
+  foot.innerHTML=`${B.step>0?`<button class="btn ghost" id="back">Back</button>`:""}<button class="btn" id="next" ${next?"":"disabled"}>${B.step===3?(B.sending?(B.svc.dep?"Opening payment…":"Sending…"):(B.svc.dep?`Pay £${money2(B.svc.dep)} deposit`:"Send booking request")):"Continue"}</button>`;
   $("#next").onclick=()=>{
     if(B.step===3)return sendBooking();
     B.err="";B.step++;
@@ -575,6 +580,7 @@ async function sendBooking(){
     const r=await fetch("api/book.php",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({service:B.svc.id,date:B.day,time:B.time,name:B.name,phone:B.phone,email:B.email,notes:B.notes,company:($("#bco")||{}).value||""})});
     const j=await r.json().catch(()=>({ok:false,error:"Something went wrong. Please try again."}));
     B.sending=false;
+    if(j.ok&&j.pay_url){location.href=j.pay_url;return}
     if(j.ok){B.ref=j.ref;B.step=4;B.avail=null;renderSheet();return}
     B.err=j.error||"Something went wrong. Please try again.";
     if(j.code==="taken"){B.step=1;B.time=null;return loadAvail()}

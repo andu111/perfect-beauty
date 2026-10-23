@@ -222,7 +222,11 @@ async function api(a,data,params=""){
   return j;
 }
 let toastT;function toast(m,ms=2800){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,ms)}
+const DEP={authorized:"held",captured:"paid",released:"released",refunded:"refunded",failed:"not taken",awaiting:"being paid",unpaid:"not paid"};
+function depChip(b){if(!b.deposit)return"";const cls=b.deposit_status==="captured"?"accepted":b.deposit_status==="authorized"||b.deposit_status==="awaiting"?"pending":"declined";
+  return `<span class="chip ${cls}">Deposit ${money(b.deposit)} ${DEP[b.deposit_status]||""}</span>`}
 function mailToast(done,j){
+  if(j.payment_error){toast(`${done} ${j.payment_error}`,10000);return}
   if(j.email_error)toast(`${done} But the email to the client didn't send: ${j.email_error} You can resend it from Settings → Recent emails.`,9000);
   else toast(`${done}${j.booking.email?" Client emailed.":" No email address, so no email sent."}`);
 }
@@ -280,6 +284,7 @@ function reqCard(b){
    <div class="when"><b>${dayLabel(b.start)}</b><span>${hm(b.start)}–${hm(b.end)}</span></div>
    <h3>${esc(b.name)}</h3>
    <div class="svc"><span>${esc(b.service)} · ${dur(b.duration)}</span><span>${money(b.price)}</span></div>
+   ${b.deposit?`<div class="row" style="gap:8px">${depChip(b)}<span class="muted">${b.deposit_status==="authorized"?"Taken when you accept, released if you decline":""}</span></div>`:""}
    <div class="contact"><a href="tel:${esc(tel)}">${esc(b.phone)}</a>${b.email?`<a href="mailto:${esc(b.email)}">${esc(b.email)}</a>`:""}</div>
    ${b.notes?`<div class="note">${esc(b.notes)}</div>`:""}
    <div class="age">Requested ${ago(b.created)} · ref ${esc(b.ref)}</div>
@@ -319,7 +324,7 @@ function slotCard(b){
       <div class="row"><button class="btn" data-act="cancel-send">Cancel${b.email?" and email client":""}</button><button class="btn ghost" data-act="decline-cancel">Keep it</button></div></div>`:"";
   return`<div class="slot ${b.status}"><div class="t">${hm(b.start)}<small>${hm(b.end)}</small></div>
    <div class="who"><b>${esc(b.name)}</b><span class="muted">${esc(b.service)} · ${money(b.price)}</span>
-   <span><span class="chip ${b.status}">${{pending:"Waiting",accepted:"Confirmed",cancelled:"Cancelled",declined:"Declined"}[b.status]}</span>${b.source==="admin"?' <span class="muted">· added by you</span>':""}</span></div>
+   <span><span class="chip ${b.status==="awaiting_payment"?"pending":b.status}">${{pending:"Waiting",accepted:"Confirmed",cancelled:"Cancelled",declined:"Declined",awaiting_payment:"Paying deposit…"}[b.status]}</span> ${depChip(b)}${b.deposit_status==="captured"&&b.status==="accepted"?` <span class="muted">· ${money(b.price-b.deposit)} due in studio</span>`:""}${b.source==="admin"?' <span class="muted">· added by you</span>':""}</span></div>
    <details><summary>Details</summary><div style="display:grid;gap:10px">
     <div class="contact">${b.phone?`<a href="tel:${esc(tel)}">${esc(b.phone)}</a>`:""}${b.email?`<a href="mailto:${esc(b.email)}">${esc(b.email)}</a>`:""}</div>
     ${b.notes?`<div class="note">${esc(b.notes)}</div>`:""}${b.reason?`<div class="note">${esc(b.reason)}</div>`:""}
@@ -401,9 +406,22 @@ async function renderSettings(){
    <label class="field" for="sstep">Start times every (minutes)<select id="sstep">${[10,15,20,30,60].map(n=>`<option ${+st.slot_step===n?"selected":""}>${n}</option>`).join("")}</select></label>
    <label class="field" for="sbuf">Gap after each client (minutes)<input id="sbuf" type="number" min="0" max="120" value="${esc(st.buffer)}"></label>
    <label class="field" for="scan">Clients can cancel up to (hours before)<input id="scan" type="number" min="0" max="336" value="${esc(st.cancel_hours)}"></label>
-   <label class="field" for="sdep">Deposit (% of price)<input id="sdep" type="number" min="0" max="100" value="${esc(st.deposit_percent)}"></label></div>
-   <p class="muted">The deposit starts being charged once online payments are connected.</p>
+   </div>
    <button class="btn" data-act="settings-save">Save settings</button></div>
+  <div class="eyebrow">Deposits and payments</div>
+  <div class="card">
+   <p class="muted">Clients pay a deposit by card, Apple Pay or Google Pay when they book. It's held on their card, taken when you accept, and released if you decline. If you cancel, or they cancel in time, it's refunded.</p>
+   <div class="grid2">
+    <label class="field" for="dmode">Deposit<select id="dmode">${[["off","No deposit"],["percent","Percentage of price"],["fixed","Fixed amount"]].map(([v,l])=>`<option value="${v}" ${st.deposit_mode===v?"selected":""}>${l}</option>`).join("")}</select></label>
+    <label class="field" for="dpct" ${st.deposit_mode==="percent"?"":"hidden"} id="dpctWrap">Percentage<input id="dpct" type="number" min="1" max="100" value="${esc(st.deposit_percent||20)}"></label>
+    <label class="field" for="dfix" ${st.deposit_mode==="fixed"?"":"hidden"} id="dfixWrap">Amount £<input id="dfix" type="number" min="0.5" step="0.5" value="${esc(st.deposit_fixed)}"></label>
+    <label class="field" for="dmin">No deposit under £<input id="dmin" type="number" min="0" step="1" value="${esc(st.deposit_min_price)}"></label></div>
+   <p class="muted">"No deposit under" keeps small treatments, like the £1 patch test, free to book. The refund time is "Clients can cancel up to" in Booking rules.</p>
+   <p><b>Stripe:</b> ${st.stripe_mode==="live"?'<span class="chip accepted">Connected, live payments</span>':st.stripe_mode==="test"?'<span class="chip pending">Connected, test mode (no real money)</span>':'<span class="chip declined">Not connected</span>'}</p>
+   <label class="field" for="skey">Stripe secret key<input id="skey" type="password" autocomplete="off" placeholder="${st.stripe_mode!=="off"?"Saved. Paste a new one to change it":"sk_live_… or sk_test_…"}"></label>
+   <label class="field" for="swh">Webhook signing secret<input id="swh" type="password" autocomplete="off" placeholder="${st.webhook_set?"Saved. Paste a new one to change it":"whsec_…"}"></label>
+   <p class="muted">Webhook address for Stripe: <span style="font-family:var(--mono);overflow-wrap:anywhere">${esc(st.webhook_url)}</span></p>
+   <div class="row"><button class="btn" data-act="pay-save">Save payments</button><button class="btn ghost" data-act="pay-check" ${st.stripe_mode==="off"?"disabled":""}>Check connection</button></div></div>
   <div class="eyebrow">Treatments and prices</div>
   <div class="card"><p class="muted">Untick a treatment to hide it from online booking.</p>
    ${cats.map(c=>`<details class="cat"><summary>${esc(c)}</summary><div class="svchead"><span>Name</span><span>Price £</span><span>Minutes</span><span>On</span></div>
@@ -493,7 +511,9 @@ document.addEventListener("click",async e=>{
     case "off-add":{const part=$("#opart").checked;const j=await api("timeoff_add",{start_date:$("#osd").value,end_date:$("#oed").value,start_time:part?$("#ost").value:"",end_time:part?$("#oet").value:"",note:$("#onote").value});
       toast(j.overlapping?`Added. ${j.overlapping} existing booking${j.overlapping>1?"s are":" is"} in that time: check your diary.`:"Time off added");S.schedule=null;renderHours();return}
     case "off-del":await api("timeoff_delete",{id:+b.dataset.id});S.schedule=null;toast("Removed");renderHours();return;
-    case "settings-save":await api("settings",{notify_email:$("#semail").value,min_notice_hours:$("#smin").value,max_days:$("#smax").value,slot_step:$("#sstep").value,buffer:$("#sbuf").value,cancel_hours:$("#scan").value,deposit_percent:$("#sdep").value});toast("Settings saved");return;
+    case "settings-save":await api("settings",{notify_email:$("#semail").value,min_notice_hours:$("#smin").value,max_days:$("#smax").value,slot_step:$("#sstep").value,buffer:$("#sbuf").value,cancel_hours:$("#scan").value});toast("Settings saved");return;
+    case "pay-save":await api("settings",{deposit_mode:$("#dmode").value,deposit_percent:$("#dpct").value,deposit_fixed:$("#dfix").value,deposit_min_price:$("#dmin").value,stripe_secret:$("#skey").value,stripe_webhook_secret:$("#swh").value});toast("Payment settings saved");renderSettings();return;
+    case "pay-check":{b.disabled=true;const j=await api("stripe_check",{});toast(`Stripe is connected${j.name?" to "+j.name:""} (${j.mode==="live"?"live":"test mode"}). ${j.charges?"Ready to take payments.":"Stripe hasn't enabled payments yet: finish the account setup in Stripe."}`,8000);b.disabled=false;return}
     case "services-save":{const services=[...document.querySelectorAll(".svcrow")].map(r=>({id:+r.dataset.sid,name:r.querySelector(".sn").value,price:r.querySelector(".sp").value,duration:r.querySelector(".sd").value,active:r.querySelector(".sa").checked}));
       const add=$("#aname").value.trim()?{category:$("#acat").value,name:$("#aname").value,price:$("#aprice").value,duration:$("#adur").value}:null;
       await api("services",{services,add});S.schedule=null;toast("Treatments saved");renderSettings();return}
@@ -508,6 +528,7 @@ document.addEventListener("change",e=>{
   if(t.classList.contains("isopen")){const r=t.closest(".hrow");t.parentElement.lastChild.textContent=t.checked?" Open":" Closed";
     r.querySelector(".pair").hidden=!t.checked;r.querySelector(".addbrk").hidden=!t.checked;if(!t.checked)r.querySelector(".brk").hidden=true}
   if(t.id==="opart")$("#otimes").hidden=!t.checked;
+  if(t.id==="dmode"){$("#dpctWrap").hidden=t.value!=="percent";$("#dfixWrap").hidden=t.value!=="fixed"}
   if(t.classList.contains("devToggle")){const row=t.closest(".dev"),name=row.querySelector("b").firstChild.textContent.trim();
     api("device_update",{id:+row.dataset.dev,enabled:t.checked}).then(()=>{const m=row.querySelector(".info .muted");m.textContent=m.textContent.replace(/^Alerts (on|off)/,t.checked?"Alerts on":"Alerts off");toast(`Alerts ${t.checked?"on":"off"} for ${name}`)}).catch(err=>{t.checked=!t.checked;toast(err.message)})}
   if(t.id==="emailToggle"){api("settings",{email_alerts:t.checked}).then(()=>{t.closest(".dev").querySelector(".muted").textContent=t.checked?"On":"Off";toast(`Email alerts ${t.checked?"on":"off"}`)}).catch(err=>{t.checked=!t.checked;toast(err.message)})}
