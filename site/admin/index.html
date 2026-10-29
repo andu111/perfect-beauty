@@ -469,7 +469,11 @@ async function renderSettings(){
    <label class="field" for="sfrom">Send from<input id="sfrom" type="email" value="${esc(st.from_email)}"></label>
    <label class="field" for="spass">Mailbox password<input id="spass" type="password" autocomplete="new-password" placeholder="${st.smtp_set?"Saved. Type a new one to change it":"Password for this mailbox"}"></label>
    <p class="muted">${st.smtp_set?"Signed in to the mailbox.":"Not set yet: emails go out through the website server, so some may land in spam."}</p>
-   <div class="row"><button class="btn" data-act="mail-save">Save</button><button class="btn ghost" data-act="mail-test">Send a test email</button></div></div>
+   <label class="field" for="sreply">Customer replies go to<input id="sreply" type="email" value="${esc(st.reply_to)}" placeholder="${esc(st.from_email)}"></label>
+   <p class="muted">Use an address on perfect-beauty.uk, such as hello@perfect-beauty.uk. A Gmail address here makes spam filters suspicious.</p>
+   <button class="btn" data-act="mail-save">Save</button>
+   <label class="field" for="stest">Send a test email to<input id="stest" type="email" value="${esc(st.notify_email)}"></label>
+   <button class="btn ghost" data-act="mail-test">Send test email</button></div>
   <div class="eyebrow">Booking rules</div>
   <div class="card"><div class="grid2">
    <label class="field" for="smin">Earliest booking (hours ahead)<input id="smin" type="number" min="0" max="336" value="${esc(st.min_notice_hours)}"></label>
@@ -597,8 +601,8 @@ document.addEventListener("click",async e=>{
     case "services-save":{const services=[...document.querySelectorAll(".svcrow")].map(r=>({id:+r.dataset.sid,name:r.querySelector(".sn").value,price:r.querySelector(".sp").value,duration:r.querySelector(".sd").value,active:r.querySelector(".sa").checked}));
       const add=$("#aname").value.trim()?{category:$("#acat").value,name:$("#aname").value,price:$("#aprice").value,duration:$("#adur").value}:null;
       await api("services",{services,add});S.schedule=null;toast("Treatments saved");renderSettings();return}
-    case "mail-save":await api("settings",{from_email:$("#sfrom").value,smtp_pass:$("#spass").value,notify_email:$("#semail").value});toast("Email settings saved");renderSettings();return;
-    case "mail-test":b.disabled=true;{const j=await api("mail_test",{});toast("Test email sent to "+j.to);b.disabled=false;return}
+    case "mail-save":await api("settings",{from_email:$("#sfrom").value,smtp_pass:$("#spass").value,reply_to:$("#sreply").value});toast("Email settings saved");renderSettings();return;
+    case "mail-test":b.disabled=true;{const j=await api("mail_test",{to:$("#stest").value});toast(`Test email sent to ${j.to}${j.via?" via "+j.via:""}`,7000);b.disabled=false;renderMailLog();return}
     case "pw-save":await api("password",{current:$("#pcur").value,new:$("#pnew").value});$("#pcur").value=$("#pnew").value="";toast("Password changed");return;
     case "logout":await api("logout",{});showLogin();return;
   }}catch(err){if(err.message!=="auth")toast(err.message);b.disabled=false}

@@ -17,7 +17,7 @@ function send_mail(string $to, string $subject, string $text, ?string &$error = 
         $from = setting('from_email', 'bookings@perfect-beauty.uk');
         if (smtp_send(['host' => setting('smtp_host', 'smtp.ionos.co.uk'), 'port' => (int)setting('smtp_port', 465),
             'user' => $from, 'pass' => setting('smtp_pass')], $from, setting('business_name', 'Perfect Beauty'), $to,
-            setting('notify_email') ?: $from, $subject, $text, $smtpErr)) {
+            reply_to(), $subject, $text, $smtpErr)) {
             mail_log($to, $subject, $text, true, 'mailbox', null, $bookingId); return true;
         }
     }
@@ -25,6 +25,11 @@ function send_mail(string $to, string $subject, string $text, ?string &$error = 
     $error = $ok ? null : trim(($smtpErr ? "Mailbox: $smtpErr. " : '') . 'Website server refused the email.');
     mail_log($to, $subject, $text, $ok, $smtpErr ? 'server (mailbox failed: ' . $smtpErr . ')' : 'server', $ok ? null : $error, $bookingId);
     return $ok;
+}
+
+/** Where customer replies go. Kept on the website's own domain by default: a Gmail reply address looks suspicious to spam filters. */
+function reply_to(): string {
+    return setting('reply_to', '') ?: setting('from_email', 'bookings@perfect-beauty.uk');
 }
 
 function mail_log(string $to, string $subject, string $body, bool $ok, string $via, ?string $error, ?int $bookingId): void {
@@ -40,7 +45,9 @@ function server_mail(string $to, string $subject, string $text): bool {
     $name = setting('business_name', 'Perfect Beauty');
     $headers = [
         'From: ' . mb_encode_mimeheader($name) . " <$from>",
-        'Reply-To: ' . (setting('notify_email') ?: $from),
+        'Reply-To: ' . reply_to(),
+        'Date: ' . date('r'),
+        'Message-ID: <' . bin2hex(random_bytes(12)) . '@' . (substr(strrchr($from, '@'), 1) ?: 'localhost') . '>',
         'MIME-Version: 1.0',
         'Content-Type: text/plain; charset=UTF-8',
         'Content-Transfer-Encoding: 8bit',

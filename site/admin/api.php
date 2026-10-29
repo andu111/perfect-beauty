@@ -142,7 +142,7 @@ case 'schedule': {
     $off->execute([now()->format('Y-m-d 00:00')]);
     $keys = ['business_name', 'notify_email', 'slot_step', 'buffer', 'min_notice_hours', 'max_days', 'cancel_hours', 'deposit_percent', 'email_alerts', 'deposit_mode'];
     json_out(['ok' => true, 'hours' => hours_list(), 'time_off' => $off->fetchAll(),
-        'settings' => array_combine($keys, array_map(fn($k) => setting($k, ''), $keys)) + ['from_email' => setting('from_email', ''), 'smtp_set' => setting('smtp_pass', '') !== '',
+        'settings' => array_combine($keys, array_map(fn($k) => setting($k, ''), $keys)) + ['from_email' => setting('from_email', ''), 'smtp_set' => setting('smtp_pass', '') !== '', 'reply_to' => setting('reply_to', ''),
             'deposit_fixed' => (int)setting('deposit_fixed', 1000) / 100, 'deposit_min_price' => (int)setting('deposit_min_price', 1000) / 100,
             'stripe_mode' => stripe_mode(), 'webhook_set' => setting('stripe_webhook_secret', '') !== '',
             'webhook_url' => site_url('/admin/stripe-webhook.php')],
@@ -223,6 +223,11 @@ case 'settings': {
         set_setting('stripe_webhook_secret', $k);
     }
     if (!empty($in['stripe_clear'])) { set_setting('stripe_secret', ''); set_setting('stripe_webhook_secret', ''); }
+    if (isset($in['reply_to'])) {
+        $e = trim((string)$in['reply_to']);
+        if ($e !== '' && !filter_var($e, FILTER_VALIDATE_EMAIL)) fail('The reply address doesn\'t look right.');
+        set_setting('reply_to', $e);
+    }
     if (isset($in['smtp_pass']) && $in['smtp_pass'] !== '') set_setting('smtp_pass', (string)$in['smtp_pass']);
     if (!empty($in['smtp_clear'])) set_setting('smtp_pass', '');
     if (isset($in['business_name']) && trim($in['business_name']) !== '') set_setting('business_name', trim(mb_substr($in['business_name'], 0, 60)));
@@ -260,11 +265,12 @@ case 'push_subscribe': {
 
 case 'mail_test': {
     if (!$isPost) fail('Use POST.', 405);
-    $to = setting('notify_email', '');
-    if ($to === '') fail('Add your email under Alerts first, then save.');
+    $to = trim((string)($in['to'] ?? '')) ?: setting('notify_email', '');
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL)) fail('Enter the address to send the test to.');
     $err = null;
     $ok = send_mail($to, 'Test email from your booking system', "This is a test. If you can read this, booking emails are working.\n\nSent " . now()->format('j M Y, H:i') . "\n", $err);
-    $ok ? json_out(['ok' => true, 'to' => $to]) : fail('The email could not be sent: ' . ($err ?: 'the server refused it.'));
+    $last = db()->query('SELECT via FROM mail_log ORDER BY id DESC LIMIT 1')->fetchColumn();
+    $ok ? json_out(['ok' => true, 'to' => $to, 'via' => (string)$last]) : fail('The email could not be sent: ' . ($err ?: 'the server refused it.'));
 }
 
 case 'photos':
