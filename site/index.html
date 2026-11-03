@@ -305,7 +305,7 @@ footer{border-top:1px solid var(--line);padding-block:28px 100px;color:var(--mut
   </section>
 </main>
 
-<footer><div class="wrap">© 2026 Perfect Beauty, Oxfordshire · perfect-beauty.uk</div></footer>
+<footer><div class="wrap">© 2026 Perfect Beauty, Oxfordshire · perfect-beauty.uk · <a href="privacy.html" style="color:inherit">Privacy policy</a></div></footer>
 <div class="bookbar"><button class="btn" data-book>Book an appointment</button></div>
 
 <div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="Portfolio photo" hidden>
@@ -562,7 +562,8 @@ function renderSheet(){
       <div class="row"><span>Left to pay in the studio</span><span>£${money2(B.svc.p-B.svc.dep)}</span></div>`:""}</div>
       <p class="note">${B.svc.dep
         ?`Your deposit is only <b>held</b> on your card until the studio confirms your appointment, then it's taken. If the time can't be confirmed, the hold is released. Pay by card, Apple Pay or Google Pay on the next screen. Cancel up to ${RULES.cancel_hours} hours before for a full refund.`
-        :"This is a booking request. The studio will confirm it by email, usually the same day. You pay in the studio on the day."}</p>`;
+        :"This is a booking request. The studio will confirm it by email, usually the same day. You pay in the studio on the day."}</p>
+      <p class="note" style="font-size:13px;margin-top:6px">We use your details only to manage your booking. See our <a href="privacy.html" target="_blank" style="color:var(--berry)">privacy policy</a>.</p>`;
     next=!B.sending;
   } else {
     $("#sheetTitle").textContent="Request sent";

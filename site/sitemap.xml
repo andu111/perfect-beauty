@@ -2,4 +2,5 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://perfect-beauty.uk/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
   <url><loc>https://perfect-beauty.uk/try-on.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://perfect-beauty.uk/privacy.html</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
 </urlset>
