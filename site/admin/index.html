@@ -115,6 +115,10 @@ main{padding-block:16px calc(var(--tabh) + 28px + env(safe-area-inset-bottom,0px
 .slot details[open] summary{margin-bottom:10px}
 .dayinfo{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .dayinfo h2{font-family:var(--display);font-size:26px}
+.day.shift{background:var(--berry-soft);border-color:var(--berry-soft);color:var(--berry)}
+.day.shift small{color:var(--berry)}
+.jump{position:relative;display:inline-flex;align-items:center;font-size:14px;font-weight:600;color:var(--berry);border:1px solid var(--line);border-radius:999px;padding:7px 14px;background:var(--surface);cursor:pointer;white-space:nowrap}
+.jump input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
 
 /* hours */
 .hrow{display:grid;grid-template-columns:44px 1fr;gap:10px;align-items:start;padding-block:12px;border-top:1px solid var(--line)}
@@ -372,17 +376,24 @@ function reqCard(b){
 async function renderDiary(){
   $("#title").textContent="Diary";const v=$("#view");
   if(!S.schedule)S.schedule=await api("schedule");
-  const start=new Date();start.setHours(0,0,0,0);start.setDate(start.getDate()-1);
+  // The strip shows 31 days from S.stripStart; it follows the selected day and can be moved with Earlier / Later.
+  const sel0=parse(S.diaryDate+" 00:00");
+  if(!S.stripStart){const y=new Date();y.setHours(0,0,0,0);y.setDate(y.getDate()-1);S.stripStart=ymd(y)}
+  {const st=parse(S.stripStart+" 00:00"),end=new Date(st);end.setDate(st.getDate()+30);
+   if(sel0<st||sel0>end){const n=new Date(sel0);n.setDate(n.getDate()-1);S.stripStart=ymd(n)}}
+  const start=parse(S.stripStart+" 00:00");
   const {days}=await api("counts",null,"&from="+ymd(start));const cnt=Object.fromEntries(days.map(d=>[d.d,d]));
   const openDays=new Set(S.schedule.hours.filter(h=>h.open).map(h=>h.weekday));
-  let strip="";for(let i=0;i<31;i++){const d=new Date(start);d.setDate(start.getDate()+i);const k=ymd(d),c=cnt[k];
+  let strip=`<button class="day shift" data-shift="-28" aria-label="Earlier dates"><small>Earlier</small><b>‹</b><i></i></button>`;for(let i=0;i<31;i++){const d=new Date(start);d.setDate(start.getDate()+i);const k=ymd(d),c=cnt[k];
     const n=c?(+c.a)+(+c.p):0;
     strip+=`<button class="day${openDays.has(d.getDay())?"":" closed"}" aria-pressed="${k===S.diaryDate}" data-day="${k}"><small>${DOW[d.getDay()]}</small><b>${d.getDate()}</b><i>${n?n+(n>1?" appts":" appt"):""}</i></button>`}
+  strip+=`<button class="day shift" data-shift="28" aria-label="Later dates"><small>Later</small><b>›</b><i></i></button>`;
   const {bookings}=await api("bookings",null,"&scope=day&date="+S.diaryDate);
   const d=parse(S.diaryDate),h=S.schedule.hours.find(x=>x.weekday===d.getDay());
   const live=bookings.filter(b=>b.status!=="cancelled"),mins=live.reduce((a,b)=>a+b.duration,0),takings=live.reduce((a,b)=>a+b.price,0);
   v.innerHTML=`<div class="strip" id="strip">${strip}</div>
-   <div class="dayinfo"><h2>${dayLabel(S.diaryDate+" 00:00")}</h2><span class="muted">${h&&h.open?`Open ${h.open}–${h.close}`:"Closed"}</span></div>
+   <div class="dayinfo"><h2>${dayLabel(S.diaryDate+" 00:00")}</h2><label class="jump" for="djump">Go to date<input type="date" id="djump" value="${S.diaryDate}"></label></div>
+   <p class="muted" style="margin-top:-8px">${h&&h.open?`Open ${h.open}–${h.close}`:"Closed"}</p>
    ${live.length?`<p class="muted">${live.length} appointment${live.length>1?"s":""} · ${dur(mins)} booked · ${money(takings)}</p>`:""}
    ${bookings.length?bookings.map(slotCard).join(""):`<div class="empty"><b>Nothing booked</b>Tap + Add to put in a phone or walk-in booking.</div>`}`;
   const sel=$(`.day[aria-pressed="true"]`);sel&&sel.scrollIntoView({inline:"center",block:"nearest"});
@@ -557,6 +568,8 @@ function devRow(d){const me=d.hash===S.thisHash;
 document.addEventListener("click",async e=>{
   const r=e.target.closest("[data-r]");if(r){r.closest(".decline").querySelector(".reason").value=r.dataset.r;return}
   const day=e.target.closest("[data-day]");if(day){S.diaryDate=day.dataset.day;renderDiary();return}
+  const sh=e.target.closest("[data-shift]");if(sh){const s0=parse(S.stripStart+" 00:00");s0.setDate(s0.getDate()+ +sh.dataset.shift);S.stripStart=ymd(s0);
+    const pick=new Date(s0);if(+sh.dataset.shift>0)pick.setDate(pick.getDate()+1);S.diaryDate=ymd(pick);renderDiary().then(()=>{const st=$("#strip");if(st&&+sh.dataset.shift>0)st.scrollLeft=0});return}
   const b=e.target.closest("[data-act]");if(!b)return;const act=b.dataset.act;
   const box=b.closest("[data-id]"),id=box&&+box.dataset.id,card=b.closest(".card,.slot");
   try{switch(act){
@@ -612,6 +625,7 @@ document.addEventListener("change",e=>{
   if(t.classList.contains("isopen")){const r=t.closest(".hrow");t.parentElement.lastChild.textContent=t.checked?" Open":" Closed";
     r.querySelector(".pair").hidden=!t.checked;r.querySelector(".addbrk").hidden=!t.checked;if(!t.checked)r.querySelector(".brk").hidden=true}
   if(t.id==="opart")$("#otimes").hidden=!t.checked;
+  if(t.id==="djump"&&t.value){S.diaryDate=t.value;renderDiary()}
   if(t.id==="phFiles"&&t.files.length){(async()=>{const files=[...t.files],pr=$("#phProgress");pr.hidden=false;let done=0,failed=[];
     for(const f of files){pr.textContent=`Adding photo ${done+1} of ${files.length}…`;
       try{await upload("photo_add",f,{category:"Lashes"});done++}catch(e){if(e.message==="auth")return;failed.push(`${f.name}: ${e.message}`)}}
