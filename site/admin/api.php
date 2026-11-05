@@ -140,7 +140,7 @@ case 'schedule': {
     $svcs = db()->query('SELECT * FROM services ORDER BY sort, id')->fetchAll();
     $off = db()->prepare('SELECT * FROM time_off WHERE end_at>=? ORDER BY start_at');
     $off->execute([now()->format('Y-m-d 00:00')]);
-    $keys = ['business_name', 'notify_email', 'slot_step', 'buffer', 'min_notice_hours', 'max_days', 'cancel_hours', 'deposit_percent', 'email_alerts', 'deposit_mode'];
+    $keys = ['business_name', 'notify_email', 'slot_step', 'buffer', 'min_notice_hours', 'max_months', 'cancel_hours', 'deposit_percent', 'email_alerts', 'deposit_mode'];
     json_out(['ok' => true, 'hours' => hours_list(), 'time_off' => $off->fetchAll(),
         'settings' => array_combine($keys, array_map(fn($k) => setting($k, ''), $keys)) + ['from_email' => setting('from_email', ''), 'smtp_set' => setting('smtp_pass', '') !== '', 'reply_to' => setting('reply_to', ''),
             'deposit_fixed' => (int)setting('deposit_fixed', 1000) / 100, 'deposit_min_price' => (int)setting('deposit_min_price', 1000) / 100,
@@ -189,7 +189,7 @@ case 'timeoff_delete':
 
 case 'settings': {
     if (!$isPost) fail('Use POST.', 405);
-    $ints = ['slot_step' => [5, 120], 'buffer' => [0, 120], 'min_notice_hours' => [0, 336], 'max_days' => [1, 365],
+    $ints = ['slot_step' => [5, 120], 'buffer' => [0, 120], 'min_notice_hours' => [0, 336], 'max_months' => [1, 12],
              'cancel_hours' => [0, 336], 'deposit_percent' => [0, 100]];
     foreach ($ints as $k => [$lo, $hi]) if (isset($in[$k])) {
         $v = (int)$in[$k]; if ($v < $lo || $v > $hi) fail("Check the value for $k."); set_setting($k, (string)$v);

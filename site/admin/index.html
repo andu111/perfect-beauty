@@ -477,7 +477,7 @@ async function renderSettings(){
   <div class="eyebrow">Booking rules</div>
   <div class="card"><div class="grid2">
    <label class="field" for="smin">Earliest booking (hours ahead)<input id="smin" type="number" min="0" max="336" value="${esc(st.min_notice_hours)}"></label>
-   <label class="field" for="smax">Latest booking (days ahead)<input id="smax" type="number" min="1" max="365" value="${esc(st.max_days)}"></label>
+   <label class="field" for="smax">Customers can book up to<select id="smax">${[1,2,3,4,5,6,9,12].map(n=>`<option value="${n}" ${+st.max_months===n?"selected":""}>${n} month${n>1?"s":""} ahead</option>`).join("")}</select></label>
    <label class="field" for="sstep">Start times every (minutes)<select id="sstep">${[10,15,20,30,60].map(n=>`<option ${+st.slot_step===n?"selected":""}>${n}</option>`).join("")}</select></label>
    <label class="field" for="sbuf">Gap after each client (minutes)<input id="sbuf" type="number" min="0" max="120" value="${esc(st.buffer)}"></label>
    <label class="field" for="scan">Clients can cancel up to (hours before)<input id="scan" type="number" min="0" max="336" value="${esc(st.cancel_hours)}"></label>
@@ -595,7 +595,7 @@ document.addEventListener("click",async e=>{
     case "off-add":{const part=$("#opart").checked;const j=await api("timeoff_add",{start_date:$("#osd").value,end_date:$("#oed").value,start_time:part?$("#ost").value:"",end_time:part?$("#oet").value:"",note:$("#onote").value});
       toast(j.overlapping?`Added. ${j.overlapping} existing booking${j.overlapping>1?"s are":" is"} in that time: check your diary.`:"Time off added");S.schedule=null;renderHours();return}
     case "off-del":await api("timeoff_delete",{id:+b.dataset.id});S.schedule=null;toast("Removed");renderHours();return;
-    case "settings-save":await api("settings",{notify_email:$("#semail").value,min_notice_hours:$("#smin").value,max_days:$("#smax").value,slot_step:$("#sstep").value,buffer:$("#sbuf").value,cancel_hours:$("#scan").value});toast("Settings saved");return;
+    case "settings-save":await api("settings",{notify_email:$("#semail").value,min_notice_hours:$("#smin").value,max_months:$("#smax").value,slot_step:$("#sstep").value,buffer:$("#sbuf").value,cancel_hours:$("#scan").value});toast("Settings saved");return;
     case "pay-save":await api("settings",{deposit_mode:$("#dmode").value,deposit_percent:$("#dpct").value,deposit_fixed:$("#dfix").value,deposit_min_price:$("#dmin").value,stripe_secret:$("#skey").value,stripe_webhook_secret:$("#swh").value});toast("Payment settings saved");renderSettings();return;
     case "pay-check":{b.disabled=true;const j=await api("stripe_check",{});toast(`Stripe is connected${j.name?" to "+j.name:""} (${j.mode==="live"?"live":"test mode"}). ${j.charges?"Ready to take payments.":"Stripe hasn't enabled payments yet: finish the account setup in Stripe."}`,8000);b.disabled=false;return}
     case "services-save":{const services=[...document.querySelectorAll(".svcrow")].map(r=>({id:+r.dataset.sid,name:r.querySelector(".sn").value,price:r.querySelector(".sp").value,duration:r.querySelector(".sd").value,active:r.querySelector(".sa").checked}));

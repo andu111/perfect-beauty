@@ -16,7 +16,8 @@ json_out([
     'hours' => hours_list(),
     'rules' => [
         'min_notice_hours' => (int)setting('min_notice_hours', 12),
-        'max_days' => (int)setting('max_days', 60),
+        'max_months' => (int)setting('max_months', 2),
+        'last_date' => booking_last_date()->format('Y-m-d'),
         'deposits' => deposit_for(100000) > 0 || deposit_for(5000) > 0,
         'cancel_hours' => (int)setting('cancel_hours', 24),
     ],

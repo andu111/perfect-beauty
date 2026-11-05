@@ -82,6 +82,17 @@ function migrate(PDO $pdo): void {
         }
         $pdo->exec('PRAGMA user_version = 7');
     }
+    if ($v < 8) {
+        // Booking window in months instead of days (keeps the old setting, rounded: 60 days -> 2 months).
+        $days = (int)($pdo->query("SELECT value FROM settings WHERE key='max_days'")->fetchColumn() ?: 60);
+        $pdo->prepare("INSERT OR IGNORE INTO settings(key,value) VALUES('max_months',?)")->execute([(string)max(1, min(12, (int)round($days / 30)))]);
+        $pdo->exec('PRAGMA user_version = 8');
+    }
+}
+
+/** Last day customers can book: today plus the number of months set in Settings. */
+function booking_last_date(): DateTimeImmutable {
+    return now()->setTime(0, 0)->modify('+' . max(1, min(12, (int)setting('max_months', 2))) . ' months');
 }
 
 function migrate_v1(PDO $pdo): void {

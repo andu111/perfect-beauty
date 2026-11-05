@@ -189,6 +189,7 @@ footer{border-top:1px solid var(--line);padding-block:28px 100px;color:var(--mut
 .day[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .day[aria-pressed="true"] small{color:inherit}
 .day:disabled{opacity:.4;cursor:not-allowed}
+.day.more{background:var(--berry-soft);border-color:var(--berry-soft);color:var(--berry)}
 .slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .slot{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 0;font-family:var(--mono);font-size:14px}
 .slot:disabled{text-decoration:line-through;opacity:.4;cursor:not-allowed}
@@ -478,7 +479,7 @@ document.addEventListener("keydown",e=>{if($("#lb").hidden)return;if(e.key==="Es
 let ALL=[];
 function rebuildAll(){ALL=MENU.flatMap(c=>c.items.map(([n,p,d,id,dep])=>({n,p,d,id,dep:dep||0,c:c.cat})));ALL_SVC=ALL}
 rebuildAll();
-let LIVE=false, RULES={max_days:60,deposits:false,cancel_hours:24};
+let LIVE=false, RULES={max_months:2,last_date:null,deposits:false,cancel_hours:24};
 const B={step:0,svc:null,day:null,time:null,name:"",phone:"",email:"",notes:"",avail:null,availFor:null,loading:false,err:"",sending:false,ref:""};
 const DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DOWL=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -505,13 +506,24 @@ function showHours(H){
   const n=$("#hoursNote");if(n)n.remove();
 }
 
-async function loadAvail(){
-  B.loading=true;B.avail=null;B.availFor=B.svc.id;renderSheet();
+// Free times are loaded 4 weeks at a time, up to the booking window set in the booking manager.
+const lastDate=()=>RULES.last_date||ymdL(new Date(Date.now()+60*864e5));
+const dayAfter=s=>{const d=dateOf(s);d.setDate(d.getDate()+1);return ymdL(d)};
+async function fetchAvail(from){
+  const left=Math.round((dateOf(lastDate())-dateOf(from))/864e5)+1;if(left<=0)return [];
+  const r=await fetch(`api/availability.php?service=${B.svc.id}&from=${from}&days=${Math.min(28,left)}`,{cache:"no-store"});
+  const j=await r.json();if(!j.ok)throw new Error(j.error);return j.days;
+}
+async function loadAvail(more){
+  if(!more){B.avail=null;B.availFor=B.svc.id}
+  B.loading=true;renderSheet();
   try{
-    const days=Math.min(28,RULES.max_days+1);
-    const r=await fetch(`api/availability.php?service=${B.svc.id}&from=${ymdL(new Date())}&days=${days}`,{cache:"no-store"});
-    const j=await r.json();if(!j.ok)throw new Error(j.error);
-    B.avail=j.days;
+    let from=more&&B.avail&&B.avail.length?dayAfter(B.avail[B.avail.length-1].date):ymdL(new Date());
+    // keep looking further ahead (up to the window) until there's at least one free time
+    do{const days=await fetchAvail(from);B.avail=(more||B.avail?B.avail||[]:[]).concat(days);
+       if(!days.length)break;from=dayAfter(days[days.length-1].date)}
+    while(!B.avail.some(d=>d.slots.length)&&from<=lastDate());
+    B.more=!!B.avail.length&&B.avail[B.avail.length-1].date<lastDate();
     if(B.day==null||!B.avail.some(d=>d.date===B.day&&d.slots.length)){const f=B.avail.find(d=>d.slots.length);B.day=f?f.date:null}
     if(B.time&&!(B.avail.find(d=>d.date===B.day)||{slots:[]}).slots.includes(B.time))B.time=null;
   }catch(e){B.err="We couldn't load free times. Check your connection and try again."}
@@ -536,7 +548,7 @@ function renderSheet(){
     else if(!B.avail.some(d=>d.slots.length)){html=err+`<p class="note">There are no free times for ${escH(B.svc.n)} in the next few weeks. Please call or message the studio.</p>`}
     else{
       html=err+`<div class="days">${B.avail.map(d=>{const dt=dateOf(d.date),n=d.slots.length;
-        return `<button class="day" ${n?"":"disabled"} aria-pressed="${B.day===d.date}" data-d="${d.date}" aria-label="${niceDay(d.date)}${n?"":d.open?", fully booked":", closed"}"><small>${DOW[dt.getDay()]}</small><b>${dt.getDate()}</b><small>${n?MON[dt.getMonth()]:d.open?"Full":"Closed"}</small></button>`}).join("")}</div>`;
+        return `<button class="day" ${n?"":"disabled"} aria-pressed="${B.day===d.date}" data-d="${d.date}" aria-label="${niceDay(d.date)}${n?"":d.open?", fully booked":", closed"}"><small>${DOW[dt.getDay()]}</small><b>${dt.getDate()}</b><small>${n?MON[dt.getMonth()]:d.open?"Full":"Closed"}</small></button>`}).join("")}${B.more?`<button class="day more" data-more="1" aria-label="Show later dates"><small>Later</small><b>›</b><small>dates</small></button>`:""}</div>`;
       const day=B.avail.find(d=>d.date===B.day);
       if(day)html+=`<p class="note" style="margin:14px 0 8px">${niceDay(day.date)} · ${escH(B.svc.n)} (${fmt(B.svc.d)})</p><div class="slots">${day.slots.map(t=>`<button class="slot" aria-pressed="${B.time===t}" data-t="${t}">${t}</button>`).join("")}</div>`;
     }
@@ -602,6 +614,7 @@ $("#stepBody").addEventListener("click",e=>{
   const s=e.target.closest("[data-s]"),d=e.target.closest(".day[data-d]"),t=e.target.closest(".slot[data-t]");
   if(s){const v=ALL.find(x=>x.n===s.dataset.s);if(!B.svc||B.svc.n!==v.n){B.svc=v;B.time=null;B.day=null}renderSheet()}
   if(d){B.day=d.dataset.d;B.time=null;renderSheet()}
+  if(e.target.closest("[data-more]")){const x=$(".days").scrollLeft;loadAvail(true).then(()=>{const st=$(".days");if(st)st.scrollLeft=x+200})}
   if(t){B.time=t.dataset.t;renderSheet()}
 });
 $("#stepBody").addEventListener("input",e=>{

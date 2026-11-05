@@ -48,7 +48,7 @@ function day_slots(string $date, int $dur, bool $forCustomer = true, ?int $ignor
     $earliest = -1;
     if ($forCustomer) {
         $first = now()->modify('+' . (int)setting('min_notice_hours', 12) . ' hours');
-        $last = now()->setTime(0, 0)->modify('+' . (int)setting('max_days', 60) . ' days');
+        $last = booking_last_date();
         if ($day > $last) return [];
         $fd = $first->format('Y-m-d');
         if ($date < $fd) return [];
