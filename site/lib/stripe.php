@@ -59,7 +59,7 @@ function stripe_checkout(array $b): string {
         'line_items' => [[
             'quantity' => 1,
             'price_data' => ['currency' => 'gbp', 'unit_amount' => (int)$b['deposit'],
-                'product_data' => ['name' => 'Deposit: ' . $b['service_name'],
+                'product_data' => ['name' => mb_substr('Deposit: ' . $b['service_name'], 0, 200),
                     'description' => nice_when($b['start_at']) . ($rest > 0 ? ' · ' . money($rest) . ' to pay in the studio' : '')]],
         ]],
         'payment_intent_data' => [

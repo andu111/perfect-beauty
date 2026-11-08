@@ -72,9 +72,10 @@ function booking_lines(array $b): string {
             default      => '',
         };
     }
-    return "Treatment: {$b['service_name']}\n" .
+    return (str_contains($b['service_name'], ' + ') ? "Treatments: " : "Treatment: ") . "{$b['service_name']}\n" .
            "When: " . nice_when($b['start_at']) . " (" . dur_text((int)$b['duration']) . ")\n" .
            "Price: " . money((int)$b['price']) . "\n" . $depLine .
+           (!empty($b['no_deposit']) ? "Deposit: none. Asked to be approved without a deposit.\n" : '') .
            "Reference: {$b['ref']}\n";
 }
 

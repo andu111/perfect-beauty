@@ -4,9 +4,8 @@ define('PB', 1);
 require __DIR__ . '/../lib/app.php';
 require __DIR__ . '/../lib/availability.php';
 
-$q = db()->prepare('SELECT * FROM services WHERE id=? AND active=1');
-$q->execute([(int)($_GET['service'] ?? 0)]);
-$svc = $q->fetch() ?: fail('That treatment is not available.', 404);
+// One treatment (?service=3) or several back to back (?services=3,12).
+$svc = combo_services($_GET['services'] ?? $_GET['service'] ?? '');
 
 $from = $_GET['from'] ?? now()->format('Y-m-d');
 if (!valid_date($from)) fail('Bad date.');
@@ -19,4 +18,4 @@ for ($i = 0; $i < $days; $i++, $d = $d->modify('+1 day')) {
     $open = hours_for((int)$d->format('w')) !== null;
     $out[] = ['date' => $date, 'open' => $open, 'slots' => $open ? day_slots($date, (int)$svc['duration']) : []];
 }
-json_out(['ok' => true, 'service' => ['id' => (int)$svc['id'], 'name' => $svc['name'], 'duration' => (int)$svc['duration']], 'days' => $out]);
+json_out(['ok' => true, 'service' => ['name' => $svc['name'], 'duration' => (int)$svc['duration']], 'days' => $out]);

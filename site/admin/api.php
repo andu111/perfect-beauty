@@ -140,7 +140,7 @@ case 'schedule': {
     $svcs = db()->query('SELECT * FROM services ORDER BY sort, id')->fetchAll();
     $off = db()->prepare('SELECT * FROM time_off WHERE end_at>=? ORDER BY start_at');
     $off->execute([now()->format('Y-m-d 00:00')]);
-    $keys = ['business_name', 'notify_email', 'slot_step', 'buffer', 'min_notice_hours', 'max_months', 'cancel_hours', 'deposit_percent', 'email_alerts', 'deposit_mode'];
+    $keys = ['business_name', 'notify_email', 'slot_step', 'buffer', 'min_notice_hours', 'max_months', 'cancel_hours', 'deposit_percent', 'email_alerts', 'deposit_mode', 'allow_no_deposit'];
     json_out(['ok' => true, 'hours' => hours_list(), 'time_off' => $off->fetchAll(),
         'settings' => array_combine($keys, array_map(fn($k) => setting($k, ''), $keys)) + ['from_email' => setting('from_email', ''), 'smtp_set' => setting('smtp_pass', '') !== '', 'reply_to' => setting('reply_to', ''),
             'deposit_fixed' => (int)setting('deposit_fixed', 1000) / 100, 'deposit_min_price' => (int)setting('deposit_min_price', 1000) / 100,
@@ -205,6 +205,7 @@ case 'settings': {
         set_setting('from_email', $e);
     }
     if (isset($in['email_alerts'])) set_setting('email_alerts', $in['email_alerts'] ? '1' : '0');
+    if (isset($in['allow_no_deposit'])) set_setting('allow_no_deposit', $in['allow_no_deposit'] ? '1' : '0');
     if (isset($in['deposit_mode'])) {
         if (!in_array($in['deposit_mode'], ['off', 'percent', 'fixed'], true)) fail('Choose how the deposit is worked out.');
         set_setting('deposit_mode', $in['deposit_mode']);

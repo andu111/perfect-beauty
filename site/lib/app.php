@@ -88,6 +88,15 @@ function migrate(PDO $pdo): void {
         $pdo->prepare("INSERT OR IGNORE INTO settings(key,value) VALUES('max_months',?)")->execute([(string)max(1, min(12, (int)round($days / 30)))]);
         $pdo->exec('PRAGMA user_version = 8');
     }
+    if ($v < 9) {
+        // Several treatments in one booking: the individual treatments, as JSON.
+        $cols = array_column($pdo->query('PRAGMA table_info(bookings)')->fetchAll(), 'name');
+        if (!in_array('items', $cols, true)) $pdo->exec('ALTER TABLE bookings ADD COLUMN items TEXT');
+        // The client asked to be approved without paying a deposit.
+        if (!in_array('no_deposit', $cols, true)) $pdo->exec('ALTER TABLE bookings ADD COLUMN no_deposit INTEGER NOT NULL DEFAULT 0');
+        $pdo->exec("INSERT OR IGNORE INTO settings(key,value) VALUES('allow_no_deposit','1')");
+        $pdo->exec('PRAGMA user_version = 9');
+    }
 }
 
 /** Last day customers can book: today plus the number of months set in Settings. */
@@ -226,6 +235,7 @@ function booking_public(array $b): array {
         'name' => $b['name'], 'phone' => $b['phone'], 'email' => $b['email'], 'notes' => $b['notes'],
         'status' => $b['status'], 'source' => $b['source'], 'reason' => $b['reason'],
         'deposit' => (int)($b['deposit'] ?? 0), 'deposit_status' => $b['deposit_status'] ?? null,
+        'no_deposit' => !empty($b['no_deposit']),
         'created' => $b['created_at'], 'decided' => $b['decided_at'],
     ];
 }

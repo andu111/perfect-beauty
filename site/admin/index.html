@@ -246,7 +246,7 @@ async function api(a,data,params=""){
 }
 let toastT;function toast(m,ms=2800){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,ms)}
 const DEP={authorized:"held",captured:"paid",released:"released",refunded:"refunded",failed:"not taken",awaiting:"being paid",unpaid:"not paid"};
-function depChip(b){if(!b.deposit)return"";const cls=b.deposit_status==="captured"?"accepted":b.deposit_status==="authorized"||b.deposit_status==="awaiting"?"pending":"declined";
+function depChip(b){if(b.no_deposit)return`<span class="chip ${b.status==="pending"?"pending":"accepted"}">${b.status==="pending"?"No deposit: asked you to approve":"No deposit"}</span>`;if(!b.deposit)return"";const cls=b.deposit_status==="captured"?"accepted":b.deposit_status==="authorized"||b.deposit_status==="awaiting"?"pending":"declined";
   return `<span class="chip ${cls}">Deposit ${money(b.deposit)} ${DEP[b.deposit_status]||""}</span>`}
 function mailToast(done,j){
   if(j.payment_error){toast(`${done} ${j.payment_error}`,10000);return}
@@ -359,7 +359,7 @@ function reqCard(b){
    <div class="when"><b>${dayLabel(b.start)}</b><span>${hm(b.start)}–${hm(b.end)}</span></div>
    <h3>${esc(b.name)}</h3>
    <div class="svc"><span>${esc(b.service)} · ${dur(b.duration)}</span><span>${money(b.price)}</span></div>
-   ${b.deposit?`<div class="row" style="gap:8px">${depChip(b)}<span class="muted">${b.deposit_status==="authorized"?"Taken when you accept, released if you decline":""}</span></div>`:""}
+   ${b.deposit||b.no_deposit?`<div class="row" style="gap:8px">${depChip(b)}<span class="muted">${b.no_deposit?"They'd like to book without paying a deposit. Accept if you're happy with that, or decline.":b.deposit_status==="authorized"?"Taken when you accept, released if you decline":""}</span></div>`:""}
    <div class="contact"><a href="tel:${esc(tel)}">${esc(b.phone)}</a>${b.email?`<a href="mailto:${esc(b.email)}">${esc(b.email)}</a>`:""}</div>
    ${b.notes?`<div class="note">${esc(b.notes)}</div>`:""}
    <div class="age">Requested ${ago(b.created)} · ref ${esc(b.ref)}</div>
@@ -502,6 +502,7 @@ async function renderSettings(){
     <label class="field" for="dpct" ${st.deposit_mode==="percent"?"":"hidden"} id="dpctWrap">Percentage<input id="dpct" type="number" min="1" max="100" value="${esc(st.deposit_percent||20)}"></label>
     <label class="field" for="dfix" ${st.deposit_mode==="fixed"?"":"hidden"} id="dfixWrap">Amount £<input id="dfix" type="number" min="0.5" step="0.5" value="${esc(st.deposit_fixed)}"></label>
     <label class="field" for="dmin">No deposit under £<input id="dmin" type="number" min="0" step="1" value="${esc(st.deposit_min_price)}"></label></div>
+   <label class="row" style="gap:10px;align-items:flex-start;margin-top:10px"><input type="checkbox" id="dask" ${st.allow_no_deposit!=="0"?"checked":""} style="margin-top:4px"><span>Let clients ask to book without a deposit<br><span class="muted">They tick a box instead of paying, and the request comes to you marked "No deposit" to accept or decline.</span></span></label>
    <p class="muted">"No deposit under" keeps small treatments, like the £1 patch test, free to book. The refund time is "Clients can cancel up to" in Booking rules.</p>
    <p><b>Stripe:</b> ${st.stripe_mode==="live"?'<span class="chip accepted">Connected, live payments</span>':st.stripe_mode==="test"?'<span class="chip pending">Connected, test mode (no real money)</span>':'<span class="chip declined">Not connected</span>'}</p>
    <label class="field" for="skey">Stripe secret key<input id="skey" type="password" autocomplete="off" placeholder="${st.stripe_mode!=="off"?"Saved. Paste a new one to change it":"sk_live_… or sk_test_…"}"></label>
@@ -609,7 +610,7 @@ document.addEventListener("click",async e=>{
       toast(j.overlapping?`Added. ${j.overlapping} existing booking${j.overlapping>1?"s are":" is"} in that time: check your diary.`:"Time off added");S.schedule=null;renderHours();return}
     case "off-del":await api("timeoff_delete",{id:+b.dataset.id});S.schedule=null;toast("Removed");renderHours();return;
     case "settings-save":await api("settings",{notify_email:$("#semail").value,min_notice_hours:$("#smin").value,max_months:$("#smax").value,slot_step:$("#sstep").value,buffer:$("#sbuf").value,cancel_hours:$("#scan").value});toast("Settings saved");return;
-    case "pay-save":await api("settings",{deposit_mode:$("#dmode").value,deposit_percent:$("#dpct").value,deposit_fixed:$("#dfix").value,deposit_min_price:$("#dmin").value,stripe_secret:$("#skey").value,stripe_webhook_secret:$("#swh").value});toast("Payment settings saved");renderSettings();return;
+    case "pay-save":await api("settings",{deposit_mode:$("#dmode").value,deposit_percent:$("#dpct").value,deposit_fixed:$("#dfix").value,deposit_min_price:$("#dmin").value,allow_no_deposit:$("#dask").checked?1:0,stripe_secret:$("#skey").value,stripe_webhook_secret:$("#swh").value});toast("Payment settings saved");renderSettings();return;
     case "pay-check":{b.disabled=true;const j=await api("stripe_check",{});toast(`Stripe is connected${j.name?" to "+j.name:""} (${j.mode==="live"?"live":"test mode"}). ${j.charges?"Ready to take payments.":"Stripe hasn't enabled payments yet: finish the account setup in Stripe."}`,8000);b.disabled=false;return}
     case "services-save":{const services=[...document.querySelectorAll(".svcrow")].map(r=>({id:+r.dataset.sid,name:r.querySelector(".sn").value,price:r.querySelector(".sp").value,duration:r.querySelector(".sd").value,active:r.querySelector(".sa").checked}));
       const add=$("#aname").value.trim()?{category:$("#acat").value,name:$("#aname").value,price:$("#aprice").value,duration:$("#adur").value}:null;

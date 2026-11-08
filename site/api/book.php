@@ -23,9 +23,10 @@ if (strlen($digits) < 10 || strlen($digits) > 15) fail('Please enter a mobile nu
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Please enter a valid email address so we can confirm your booking.');
 if (!valid_date($date) || !valid_hm($time)) fail('Please choose a day and time.');
 
-$q = db()->prepare('SELECT * FROM services WHERE id=? AND active=1');
-$q->execute([(int)($in['service'] ?? 0)]);
-$svc = $q->fetch() ?: fail('That treatment is no longer available. Please choose another.');
+// One treatment, or several booked back to back as one appointment.
+$svc = combo_services($in['services'] ?? $in['service'] ?? '');
+// The client can ask the studio to approve the booking without a deposit (if the studio allows asking).
+$askNoDep = !empty($in['no_deposit']) && setting('allow_no_deposit', '1') === '1' && deposit_for((int)$svc['price']) > 0;
 
 if (!rate_ok('book', 6, 3600)) fail('Too many requests from this connection. Please call or message the studio instead.', 429);
 
@@ -44,7 +45,9 @@ try {
         'price' => (int)$svc['price'], 'duration' => (int)$svc['duration'], 'start_at' => "$date $time",
         'end_at' => end_stamp($date, $time, (int)$svc['duration']), 'name' => $name, 'phone' => $phone, 'email' => $email,
         'notes' => $notes, 'status' => 'pending', 'source' => 'online', 'created_at' => now()->format('Y-m-d H:i:s'), 'ip' => client_ip(),
-        'deposit' => deposit_for((int)$svc['price']),
+        'deposit' => $askNoDep ? 0 : deposit_for((int)$svc['price']),
+        'no_deposit' => $askNoDep ? 1 : 0,
+        'items' => count($svc['items']) > 1 ? json_encode($svc['items'], JSON_UNESCAPED_UNICODE) : null,
     ];
     if ($b['deposit'] > 0) {   // hold the slot while the deposit is paid
         $b['status'] = 'awaiting_payment';

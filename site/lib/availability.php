@@ -84,3 +84,26 @@ function hours_list(): array {
                   'break_start' => $h['break_start'], 'break_end' => $h['break_end']];
     return $out;
 }
+
+/**
+ * One or more treatments booked back to back, as a single appointment.
+ * $raw is "3" or "3,12" or [3, 12]. Fails with a customer-friendly message if any treatment isn't bookable.
+ * Returns ['id' => first id, 'name' => "A + B", 'price' => total pence, 'duration' => total minutes, 'items' => [...]].
+ */
+function combo_services($raw): array {
+    $ids = is_array($raw) ? $raw : explode(',', (string)$raw);
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+    if (!$ids) fail('Please choose a treatment.');
+    if (count($ids) > 4) fail('You can book up to 4 treatments at once. For more, please call the studio.');
+    $q = db()->prepare('SELECT * FROM services WHERE id=? AND active=1');
+    $items = [];
+    foreach ($ids as $id) {
+        $q->execute([$id]);
+        $s = $q->fetch() ?: fail('One of those treatments is no longer available. Please choose again.', 404);
+        $items[] = ['id' => (int)$s['id'], 'name' => $s['name'], 'price' => (int)$s['price'], 'duration' => (int)$s['duration']];
+    }
+    $dur = array_sum(array_column($items, 'duration'));
+    if ($dur > 600) fail('Those treatments are too long for one visit. Please book them separately.');
+    return ['id' => $items[0]['id'], 'name' => implode(' + ', array_column($items, 'name')),
+            'price' => array_sum(array_column($items, 'price')), 'duration' => $dur, 'items' => $items];
+}
