@@ -65,6 +65,9 @@ $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES);
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>Your booking · Perfect Beauty</title>
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/favicon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>
 :root{--bg:#F7F5F8;--surface:#fff;--ink:#1F1A24;--muted:#6B6372;--line:#E4DEE6;--berry:#8A2F55;--berry-ink:#fff;--soft:#F3E4EB;--ok:#2F6B4F}
 @media (prefers-color-scheme:dark){:root{--bg:#141117;--surface:#1D1922;--ink:#F1ECF2;--muted:#A79FAD;--line:#2F2935;--berry:#E07FA6;--berry-ink:#1A0F15;--soft:#33202A;--ok:#7FC8A2;color-scheme:dark}}
