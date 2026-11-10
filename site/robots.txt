@@ -4,6 +4,5 @@ Allow: /api/portfolio.php
 Disallow: /admin/
 Disallow: /api/
 Disallow: /my-booking.php
-Disallow: /https-setup.php
 
 Sitemap: https://perfect-beauty.uk/sitemap.xml
