@@ -6,6 +6,22 @@
 <meta name="description" content="Lash extensions, lash lifts, brows, permanent makeup, nails and waxing in Banbury, Oxfordshire. See prices and book online.">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Perfect Beauty Banbury</title>
+<link rel="canonical" href="https://perfect-beauty.uk/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Perfect Beauty">
+<meta property="og:title" content="Perfect Beauty Banbury: lashes, brows &amp; permanent makeup">
+<meta property="og:description" content="Lash extensions, lash lifts, brows, permanent makeup, nails and waxing in Banbury, Oxfordshire. See prices and book online.">
+<meta property="og:url" content="https://perfect-beauty.uk/">
+<meta property="og:image" content="https://perfect-beauty.uk/img/work/lashes-mega-volume.jpg">
+<meta property="og:locale" content="en_GB">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json" id="ldStudio">{"@context":"https://schema.org","@type":"BeautySalon","@id":"https://perfect-beauty.uk/#studio",
+ "name":"Perfect Beauty","url":"https://perfect-beauty.uk/","telephone":"+447717114683","email":"bookings@perfect-beauty.uk",
+ "image":"https://perfect-beauty.uk/img/work/lashes-mega-volume.jpg",
+ "description":"Lash extensions, lash lifts, brows, permanent makeup, nails and waxing in Banbury, Oxfordshire.",
+ "address":{"@type":"PostalAddress","streetAddress":"17 Marlborough Place","addressLocality":"Banbury","addressRegion":"Oxfordshire","postalCode":"OX16 5DA","addressCountry":"GB"},
+ "areaServed":["Banbury","Oxfordshire"],"priceRange":"££","currenciesAccepted":"GBP",
+ "sameAs":["https://www.instagram.com/lash_trainer_banbury/"]}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..700;1,6..96,400..600&family=Figtree:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap">
 <style>
@@ -509,9 +525,18 @@ async function loadInfo(){
     RULES=j.rules;rebuildAll();LIVE=true;
     VOLN.forEach(([set,inf],i)=>{const a=ALL.find(x=>x.n===set),b=ALL.find(x=>x.n===inf);if(a){VOL[i].set=a.p;VOL[i].t=a.d}if(b)VOL[i].inf=b.p});
     if(cat>=MENU.length)cat=0;
-    renderMenu();renderVol();renderWork();showHours(j.hours);
+    renderMenu();renderVol();renderWork();showHours(j.hours);ldLive(j);
   }catch(e){/* keep the built-in price list; the booking sheet explains if booking is unavailable */}
 }
+// Opening hours and the treatment menu for search engines, from the same live data as the page.
+function ldLive(j){try{
+  const el=$("#ldStudio"),ld=JSON.parse(el.textContent),D=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  ld.openingHoursSpecification=j.hours.filter(h=>h.open).flatMap(h=>(h.break_start?[[h.open,h.break_start],[h.break_end,h.close]]:[[h.open,h.close]])
+    .map(([o,c])=>({"@type":"OpeningHoursSpecification",dayOfWeek:"https://schema.org/"+D[h.weekday],opens:o,closes:c})));
+  ld.hasOfferCatalog={"@type":"OfferCatalog",name:"Treatments",itemListElement:j.categories.map(c=>({"@type":"OfferCatalog",name:c.cat,
+    itemListElement:c.items.map(s=>({"@type":"Offer",price:(s.price/100).toFixed(2),priceCurrency:"GBP",itemOffered:{"@type":"Service",name:s.name}}))}))};
+  el.textContent=JSON.stringify(ld);
+}catch(e){}}
 function showHours(H){
   const order=[1,2,3,4,5,6,0],txt=h=>h&&h.open?`${h.open} – ${h.close}`:"Closed",groups=[];
   for(const wd of order){const h=H.find(x=>x.weekday===wd),t=txt(h),g=groups[groups.length-1];

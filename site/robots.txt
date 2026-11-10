@@ -1,7 +1,8 @@
 User-agent: *
+Allow: /api/info.php
+Allow: /api/portfolio.php
 Disallow: /admin/
 Disallow: /api/
 Disallow: /my-booking.php
-Disallow: /go-live.php
 
 Sitemap: https://perfect-beauty.uk/sitemap.xml
